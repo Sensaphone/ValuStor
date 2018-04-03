@@ -1,6 +1,8 @@
 PURPOSE
 -------
-This project is intended to replace a memcached key-value pair database with a superior alternative.
+This project is a key-value pair database intended as an alternative to memcached.
+It is an easy to use, single-file, header-only C++11-compatible project.
+
 Memcached has a number of out-of-the-box limitations including lack of persistent storage,
 type-inflexibility, and no direct redundancy or failover capabilities. To resolve these issues,
 we can use the [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
@@ -35,8 +37,21 @@ records is supported. Another option is just to allow some records to fall out o
 be reloaded from disk from time-to-time. The extreme performance of ScyllaDB makes this relatively
 painless for most applications.
 
-For ease-of-use, it is single-file, header-only C++11-compatible project.
-
+KEY FEATURES
+------------
+* Single header-only implementation makes it easy to drop into C++ projects.
+* Supports a variety of C++ data types in the keys and values.
+ * 8-, 16-, 32-, and 64-bit signed integers
+ * 32-bit unsigned integers
+ * single- and double-precision floating point numbers
+ * boolean
+ * strings
+ * binary byte arrays
+ * UUID
+* Simple API: Only a single store and a single retrieve function are needed. There is no need to write database queries.
+* There is no need to batch read or write requests for performance.
+* There is no special client configuration required for redundancy, scalability, or multi-thread performance.
+* RAM-like performance for most applications
 
 CONFIGURATION
 -------------
@@ -74,7 +89,7 @@ The following types are supported in the 'key' or 'value' fields in the CREATE T
 * int16 (int16_t)
 * int32 (int32_t)
 * uint32 (uint32_t)
-* int64 (int64_5)
+* int64 (int64_t)
 * float (float)
 * double (double)
 * bool (cass_bool_t)
