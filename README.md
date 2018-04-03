@@ -94,13 +94,13 @@ API
 ---
 ValuStor is implemented as a template class using only a default constructor.
 ```C++
-  template<typename Key_t, typename Val_t> class ValuStor
+  template<typename Key_T, typename Val_T> class ValuStor
 ```
 
 The public API is very simple:
 ```C++
-  ValuStor::Result store(long key, std::string value, uint32_t seconds_ttl, InsertMode_t insert_mode)
-  ValuStor::Result retrieve(long key)
+  ValuStor::Result store(Key_T key, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode)
+  ValuStor::Result retrieve(Key_T key)
 ```
 
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
