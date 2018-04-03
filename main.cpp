@@ -4,7 +4,7 @@
 #include <chrono>
 
 int main(void){
-  auto result = ValueStore::retrieve(1234);
+  auto result = ValueStore::retrieve<int, std::string>(1234);
   std::cout << result.result_message << std::endl;
   if(result){
     std::cout << "Success" << std::endl;
