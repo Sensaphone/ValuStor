@@ -54,7 +54,7 @@ other dealings in this Software without prior written authorization.
 #define SCYLLA_VALUE_FIELD  std::string("value")
 #define SCYLLA_USERNAME     std::string("username")
 #define SCYLLA_PASSWORD     std::string("password")
-#define SCYLLA_IP_ADDRESSES std::string("10.1.2.225,192.168.0.1,192.168.0.2,192.168.0.3")
+#define SCYLLA_IP_ADDRESSES std::string("192.168.0.1,192.168.0.2,192.168.0.3")
 
 //
 // The code will try for high consistency at first.
@@ -436,72 +436,66 @@ class ValueStore
       std::string error_message = "Scylla Error";
       Val_T data;
 
-      // if(key < 0){
-      //   error_code = ValueStore::INVALID_KEY;
-      //   error_message = "Scylla Error: Invalid 'key' specified";
-      // } // if
-      //            else{
-        ValueStore& store = ValueStore::instance();
-        if(store.prepared_select == nullptr){
-          error_code = ValueStore::PREPARED_SELECT_FAILED;
-          error_message = "Scylla Error: Prepared Select Failed";
-        } // else if
-        else{
-          CassStatement* statement = cass_prepared_bind(store.prepared_select);
-          if(statement != nullptr){
-            CassError error = bind(statement, 0, key);
-            if(error != CASS_OK){
-              error_code = ValueStore::BIND_ERROR;
-              error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
-            } // if
-            else{
-              const std::vector<CassConsistency> consistency_levels = SCYLLA_READ_CONSISTENCIES;
-              for(auto& level : consistency_levels){
-                error = cass_statement_set_consistency(statement, level);
-                if(error != CASS_OK){
-                  error_code = ValueStore::CONSISTENCY_ERROR;
-                  error_message = "Scylla Error: Unable to set statement consistency: " + std::string(cass_error_desc(error));
-                } // if
-                else{
-                  CassFuture* result_future = cass_session_execute(store.session, statement);
-                  if(result_future != nullptr){
-                    cass_future_wait_timed(result_future, 2000000L); // Wait up to 2s
-                    if (cass_future_error_code(result_future) != CASS_OK) {
-                      error_code = ValueStore::QUERY_ERROR;
-                      error_message = logFutureErrorMessage(result_future, "Unable to run query");
-                    } // if
-                    else{
-                      const CassResult* cass_result = cass_future_get_result(result_future);
-                      if(cass_result != nullptr){
-                        const CassRow* row = cass_result_first_row(cass_result);
-                        if (row != nullptr) {
-                          const CassValue* value = cass_row_get_column(row, 0);
-                          const char* str;
-                          size_t str_length;
-                          cass_value_get_string(value, &str, &str_length);
-
-                          error_code = ValueStore::SUCCESS;
-                          error_message = "Value read successfully";
-                          data = std::string(str, str + str_length);
-                        } // if
-                        else{
-                          error_code = ValueStore::NOT_FOUND;
-                          error_message = "Error: Value Not Found";
-                        } // else
-                        cass_result_free(cass_result);
-                        cass_future_free(result_future); // Free it here, because we break out of the for loop.
-                        break;
-                      } // if
-                    } // else
-                    cass_future_free(result_future);
-                  } // if
-                } // else
-              } // for
-            } // else
-            cass_statement_free(statement);
+      ValueStore& store = ValueStore::instance();
+      if(store.prepared_select == nullptr){
+        error_code = ValueStore::PREPARED_SELECT_FAILED;
+        error_message = "Scylla Error: Prepared Select Failed";
+      } // else if
+      else{
+        CassStatement* statement = cass_prepared_bind(store.prepared_select);
+        if(statement != nullptr){
+          CassError error = bind(statement, 0, key);
+          if(error != CASS_OK){
+            error_code = ValueStore::BIND_ERROR;
+            error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
           } // if
-        } // else
-        //      } // else
+          else{
+            const std::vector<CassConsistency> consistency_levels = SCYLLA_READ_CONSISTENCIES;
+            for(auto& level : consistency_levels){
+              error = cass_statement_set_consistency(statement, level);
+              if(error != CASS_OK){
+                error_code = ValueStore::CONSISTENCY_ERROR;
+                error_message = "Scylla Error: Unable to set statement consistency: " + std::string(cass_error_desc(error));
+              } // if
+              else{
+                CassFuture* result_future = cass_session_execute(store.session, statement);
+                if(result_future != nullptr){
+                  cass_future_wait_timed(result_future, 2000000L); // Wait up to 2s
+                  if (cass_future_error_code(result_future) != CASS_OK) {
+                    error_code = ValueStore::QUERY_ERROR;
+                    error_message = logFutureErrorMessage(result_future, "Unable to run query");
+                  } // if
+                  else{
+                    const CassResult* cass_result = cass_future_get_result(result_future);
+                    if(cass_result != nullptr){
+                      const CassRow* row = cass_result_first_row(cass_result);
+                      if (row != nullptr) {
+                        const CassValue* value = cass_row_get_column(row, 0);
+                        const char* str;
+                        size_t str_length;
+                        cass_value_get_string(value, &str, &str_length);
+
+                        error_code = ValueStore::SUCCESS;
+                        error_message = "Value read successfully";
+                        data = std::string(str, str + str_length);
+                      } // if
+                      else{
+                        error_code = ValueStore::NOT_FOUND;
+                        error_message = "Error: Value Not Found";
+                      } // else
+                      cass_result_free(cass_result);
+                      cass_future_free(result_future); // Free it here, because we break out of the for loop.
+                      break;
+                    } // if
+                  } // else
+                  cass_future_free(result_future);
+                } // if
+              } // else
+            } // for
+          } // else
+          cass_statement_free(statement);
+        } // if
+      } // else
 
       return ValueStore::Result(error_code, error_message, data);
 
