@@ -11,10 +11,14 @@ in 100% cache hits. Under the rare circumstances where data is not in the Scylla
 itself is one of the highest performing disk-based databases that exists anywhere. A single properly
 spec'ed server can serve as many as a million transactions per second even if it has to hit the disk.
 
-ScyllaDB is an eventually-consistent database, which is perfect for a cache. Memcached makes no
-guarantees that a key will return a value that was previously stored. When a memcached node goes down
-that data is lost. ScyllaDB, on the other hand, will almost always return something, even if it is an
-older version. Inconsistencies can be repaired and resolved easily.
+ScyllaDB is an eventually-consistent database, which is perfect for many cache applications. Memcached 
+makes no guarantees that a key will return a value that was previously stored. When a memcached node
+goes down that data is lost. ScyllaDB, with built in redundancy, will almost always return something,
+even if it is an older version. Inconsistencies can be repaired and resolved easily.
+
+ScyllaDB lets you easily scale up as demand increases. With configurable levels of redundancy, you
+can decide how many copies of each piece of data you want on each database node according to your
+own tolerance for failure.
 
 ScyllaDB also supports tunable consistency. This project makes use of this by seeking high levels of
 consistency, but allowing for lower levels of consistency in exchange for availability. It is possible
