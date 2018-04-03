@@ -6,7 +6,7 @@ type-inflexibility, and no direct redundancy or failover capabilities. To resolv
 we can use the [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
 
 ScyllaDB is a disk-backed data store with an in-RAM cache. As such, ScyllaDB performs extremely well
-for this application. In most cases, the entire data set can be stored in the database cache, resulting
+for this application. In many cases, the entire data set can be stored in the database cache, resulting
 in 100% cache hits. Under the rare circumstances where data is not in the ScyllaDB cache, the database
 itself is one of the highest performing disk-based databases that exists anywhere. A single properly
 spec'ed server can serve as many as a million transactions per second even if it has to hit the disk.
@@ -14,7 +14,7 @@ spec'ed server can serve as many as a million transactions per second even if it
 ScyllaDB is an eventually-consistent database, which is perfect for a cache. Memcached makes no
 guarantees that a key will return a value that was previously stored. When a memcached node goes down
 that data is lost. ScyllaDB, on the other hand, will almost always return something, even if it is an
-older version. Inconsistencies can be repaired and resolved easily and happen with much less frequency.
+older version. Inconsistencies can be repaired and resolved easily.
 
 ScyllaDB also supports tunable consistency. This project makes use of this by seeking high levels of
 consistency, but allowing for lower levels of consistency in exchange for availability. It is possible
@@ -22,12 +22,12 @@ to tune this to require full quorum-level consistency that mirrors memcached's a
 availability.
 
 Because ScyllaDB is a fully typed database, we can do more than just "string => string" key-value pairs.
-At the moment this project intends to support both integers and strings with more to come.
+The project supports integers, floating-points, strings, bytes (blobs), and uuids.
 
 There is one important caveat. While memcached allows support for a fixed memory profile, the ScyllaDB
 data store does not. To maintain absolute RAM-based access performance, enough memory is required to 
 store the full data set. Alternatively, precision use of TTL records for automatic deletion of old cache
-records is possible. Another option is just to allow some records to fall out of the ScyllaDB cache and
+records is supported. Another option is just to allow some records to fall out of the ScyllaDB cache and
 be reloaded from disk from time-to-time. The extreme performance of ScyllaDB makes this relatively
 painless for most applications.
 
@@ -39,65 +39,100 @@ CONFIGURATION
 All configuration options, including server information, are the top of the header file.
 
 The only requirement is to set the following:
-`
+```C++
   #define SCYLLA_DB_TABLE     std::string("<database>.<table>")
   #define SCYLLA_KEY_FIELD    std::string("<key field>")
   #define SCYLLA_VALUE_FIELD  std::string("<value field>")
   #define SCYLLA_USERNAME     std::string("<username>")
   #define SCYLLA_PASSWORD     std::string("<password>")
-  #define SCYLLA_IP_ADDRESSES std::string("<ip_address_1>,<ip_address_2>,<ip_address_3>")`
+  #define SCYLLA_IP_ADDRESSES std::string("<ip_address_1>,<ip_address_2>,<ip_address_3>")
+```
 
 Given a schema of a scylla table...
-`
+```sql
   CREATE TABLE cache.values (
     key bigint PRIMARY KEY,
     value text
   ) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}
-    AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};`
+    AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
+```
 
 ...the following are used in the configuration:
-`
+```
   <database> = cache
   <table> = values
   <key field> = key
-  <value field> = value`
+  <value field> = value
+```
+
+The following types are supported in the 'key' or 'value' fields in the CREATE TABLE:
+* int8 (int8_t)
+* int16 (int16_t)
+* int32 (int32_t)
+* uint32 (uint32_t)
+* int64 (int64_5)
+* float (float)
+* double (double)
+* bool (cass_bool_t)
+* string (std::string and char*)
+* bytes (cass_byte_t*)
+* uuid (CassUuid)
+
+We don't support the following, but the c++ driver does:
+* custom
+* inet
+* decimal
+* collection
+* tuple
+* user-defined type
 
 API
 ---
-There are only two public functions in the API:
-`
-  ValueStore::Result store(long key, std::string value, InsertMode_t insert_mode)
-  ValueStore::Result retrieve(long key)`
+ValuStor is implemented as a template class using only a default constructor.
+```C++
+  template<typename Key_t, typename Val_t> class ValuStor
+```
 
-Insert modes are ValueStore::DISALLOW_BACKLOG, ValueStore::ALLOW_BACKLOG, and ValueStore::USE_ONLY_BACKLOG.
+The public API is very simple:
+```C++
+  ValuStor::Result store(long key, std::string value, uint32_t seconds_ttl, InsertMode_t insert_mode)
+  ValuStor::Result retrieve(long key)
+```
 
-The ValueStore::Result has the following data members:
-`
+The optional seconds TTL is the number of seconds before the stored value expires in the database.
+
+The optional insert modes are `ValuStor::DISALLOW_BACKLOG`, `ValuStor::ALLOW_BACKLOG`, and `ValuStor::USE_ONLY_BACKLOG`.
+
+The ValuStor::Result has the following data members:
+```C++
   ErrorCode_t error_code
   std::string result_message
-  std::string data`
+  std::string data
+```
 
-The ValueStore::ErrorCode_t is one of the following:
-`
-  ValueStore::UNKNOWN_ERROR = -8
-  ValueStore::BIND_ERROR = -7
-  ValueStore::QUERY_ERROR = -6
-  ValueStore::CONSISTENCY_ERROR = -5
-  ValueStore::PREPARED_SELECT_FAILED = -4
-  ValueStore::PREPARED_INSERT_FAILED = -3
-  ValueStore::SESSION_FAILED = -2
-  ValueStore::INVALID_KEY = -1
-  ValueStore::SUCCESS = 0
-  ValueStore::NOT_FOUND = 1`
+The ValuStor::ErrorCode_t is one of the following:
+```C++
+  ValuStor::UNKNOWN_ERROR = -8
+  ValuStor::BIND_ERROR = -7
+  ValuStor::QUERY_ERROR = -6
+  ValuStor::CONSISTENCY_ERROR = -5
+  ValuStor::PREPARED_SELECT_FAILED = -4
+  ValuStor::PREPARED_INSERT_FAILED = -3
+  ValuStor::SESSION_FAILED = -2
+  ValuStor::INVALID_KEY = -1
+  ValuStor::SUCCESS = 0
+  ValuStor::NOT_FOUND = 1
+```
 
 USAGE
 -----
 
 Code:
-`
-  auto store_result = ValueStore::store(1234, "value");
+```C++
+  ValuStor<long, std::string> valuestore;
+  auto store_result = valuestore.store(1234, "value");
   if(store_result){
-    auto retrieve_result = ValueStore::retrieve(1234);
+    auto retrieve_result = valuestore.retrieve(1234);
     if(retrieve_result){
       std::cout << 1234 << " => " << result.data << std::endl;
     }
@@ -107,11 +142,13 @@ Code:
   }
   else{
     std::cerr << store_result.result_message << std::endl;
-  }`
+  }
+```
 
 Output:
-`
-  1234 => value`
+```
+  1234 => value
+```
 
 
 DEPENDENCIES
@@ -136,17 +173,13 @@ NOTE: The multi-threaded performance of the cassandra driver is higher performin
 
 KNOWN ISSUES
 -------------
-1) If the client cannot connect to a server and never has, failed ValueStore::store() calls will use the backlog queue.
+The backlog has a number of known issues:
+1. If the client cannot connect to a server and never has, failed ValuStor::store() calls will use the backlog queue.
    Even if the server becomes accessible, the backlog thread will not begin to process.
-   The back log thread will only start working after a successful ValueStore::store() call.
-
-2) If the backlog receives two entries with the same key, it will not remove the older one.
-
-3) The backlog appears to be poorer performing than not using it even though batching should theoretically be faster.
-
-4) The code currently only supports "integer => string" key-value pairs.
-
-5) Retrievals do not check the backlog.
+   The back log thread will only start working after a successful ValuStor::store() call.
+1. If the backlog receives two entries with the same key, it will not remove the older one.
+1. Backlog entries may be inserted out-of-order in some cases.
+1. Retrievals do not check the backlog.
 
 LICENSE
 -------
