@@ -3,7 +3,7 @@ PURPOSE
 This project is intended to replace a memcached key-value pair database with a superior alternative.
 Memcached has a number of out-of-the-box limitations including lack of persistent storage,
 type-inflexibility, and no direct redundancy or failover capabilities. To resolve these issues,
-we can use the ScyllaDB, a Cassandra-compatible database written in C++.
+we can use the [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
 
 ScyllaDB is a disk-backed data store with an in-RAM cache. As such, ScyllaDB performs extremely well
 for this application. In most cases, the entire data set can be stored in the database cache, resulting
@@ -39,45 +39,46 @@ CONFIGURATION
 All configuration options, including server information, are the top of the header file.
 
 The only requirement is to set the following:
-
+`
   #define SCYLLA_DB_TABLE     std::string("<database>.<table>")
   #define SCYLLA_KEY_FIELD    std::string("<key field>")
   #define SCYLLA_VALUE_FIELD  std::string("<value field>")
   #define SCYLLA_USERNAME     std::string("<username>")
   #define SCYLLA_PASSWORD     std::string("<password>")
-  #define SCYLLA_IP_ADDRESSES std::string("<ip_address_1>,<ip_address_2>,<ip_address_3>")
+  #define SCYLLA_IP_ADDRESSES std::string("<ip_address_1>,<ip_address_2>,<ip_address_3>")`
 
 Given a schema of a scylla table...
-
+`
   CREATE TABLE cache.values (
     key bigint PRIMARY KEY,
     value text
   ) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}
-    AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
+    AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};`
 
 ...the following are used in the configuration:
+`
   <database> = cache
   <table> = values
   <key field> = key
-  <value field> = value
+  <value field> = value`
 
 API
 ---
 There are only two public functions in the API:
-
+`
   ValueStore::Result store(long key, std::string value, InsertMode_t insert_mode)
-  ValueStore::Result retrieve(long key)
+  ValueStore::Result retrieve(long key)`
 
 Insert modes are ValueStore::DISALLOW_BACKLOG, ValueStore::ALLOW_BACKLOG, and ValueStore::USE_ONLY_BACKLOG.
 
 The ValueStore::Result has the following data members:
-
+`
   ErrorCode_t error_code
   std::string result_message
-  std::string data
+  std::string data`
 
 The ValueStore::ErrorCode_t is one of the following:
-
+`
   ValueStore::UNKNOWN_ERROR = -8
   ValueStore::BIND_ERROR = -7
   ValueStore::QUERY_ERROR = -6
@@ -87,12 +88,13 @@ The ValueStore::ErrorCode_t is one of the following:
   ValueStore::SESSION_FAILED = -2
   ValueStore::INVALID_KEY = -1
   ValueStore::SUCCESS = 0
-  ValueStore::NOT_FOUND = 1
+  ValueStore::NOT_FOUND = 1`
 
 USAGE
 -----
 
 Code:
+`
   auto store_result = ValueStore::store(1234, "value");
   if(store_result){
     auto retrieve_result = ValueStore::retrieve(1234);
@@ -105,10 +107,11 @@ Code:
   }
   else{
     std::cerr << store_result.result_message << std::endl;
-  }
+  }`
 
 Output:
-  1234 => value
+`
+  1234 => value`
 
 
 DEPENDENCIES
