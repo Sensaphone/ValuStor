@@ -190,6 +190,12 @@ Multi-threaded inserts are generally higher performing than single-threaded inse
 NOTE: The multi-threaded performance of the cassandra driver is higher performing than the backlog thread.
       Backlog should only be used to increase data availability, not to increase performance.
 
+ATOMICITY
+---------
+All write operations are performed atomically, but depending on the consistency level unexpected results may occur.
+If the order is strictly important, all reads and writes must be performed at QUORUM consistency or higher.
+There is no way to read-and-modify (including prepending/appending) data atomically.
+
 KNOWN ISSUES
 -------------
 The backlog has a number of known issues:
