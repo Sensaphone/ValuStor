@@ -4,28 +4,30 @@ This project is a key-value pair database intended as an alternative to memcache
 It is an easy to use, single-file, header-only C++11-compatible project.
 
 Memcached has a number of out-of-the-box limitations including lack of persistent storage,
-type-inflexibility, and no direct redundancy or failover capabilities. To resolve these issues,
-we can use the [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
+type-inflexibility, no direct redundancy or failover capabilities, and poor scalability. 
+This project resolves these issues by wrapping key-value pair operations around 
+[ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
 
-ScyllaDB is a disk-backed data store with an in-RAM cache. As such, ScyllaDB performs extremely well
+ScyllaDB is a disk-backed data store with an in-RAM cache. As such, it performs extremely well
 for this application. In many cases, the entire data set can be stored in the database cache, resulting
 in 100% cache hits. Under the rare circumstances where data is not in the ScyllaDB cache, the database
 itself is one of the highest performing disk-based databases that exists anywhere. A single properly
 spec'ed server can serve as many as a million transactions per second even if it has to hit the disk.
 
-ScyllaDB is an eventually-consistent database, which is perfect for many cache applications. Memcached 
+ScyllaDB is a NoSQL eventually-consistent database, which is fine for many cache applications. Memcached 
 makes no guarantees that a key will return a value that was previously stored. When a memcached node
 goes down that data is lost. ScyllaDB, with built in redundancy, will almost always return something,
 even if it is an older version. Inconsistencies can be repaired and resolved easily.
 
-ScyllaDB lets you easily scale up as demand increases. With configurable levels of redundancy, you
-can decide how many copies of each piece of data you want on each database node according to your
-own tolerance for failure.
+With memcached you were limited to the amount of RAM on a memcached node. There was no automatic way 
+to scale ever higher. ScyllaDB lets you easily scale up as demand increases. With configurable levels
+of redundancy, you can decide how many copies of each piece of data you want on each database node
+according to your own tolerance for failure.
 
 ScyllaDB also supports tunable consistency. This project makes use of this by seeking high levels of
-consistency, but allowing for lower levels of consistency in exchange for availability. It is possible
-to tune this to require full quorum-level consistency that mirrors memcached's all or nothing 
-availability.
+consistency, but allowing for lower levels of consistency in exchange for higher availability.
+It is possible to tune this to require full quorum-level consistency that mirrors memcached's all or
+nothing availability.
 
 Because ScyllaDB is a fully typed database, we can do more than just "string => string" key-value pairs.
 The project supports integers, floating-points, strings, bytes (blobs), and uuids.
