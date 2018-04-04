@@ -171,8 +171,8 @@ This project has only been tested with version 2.7.1, but in principle it should
 If using g++, it must be linked with -L/path/to/libcassandra.so/ -lcassandra.
 
 An installation of either Cassandra or ScyllaDB is required. The latter is strongly
-recommended for this application, as the former has much worse performance. ScyllaDB is incredibly easy
-to setup. This project has been tested with ScyllaDB v.2.x.
+recommended for this application, as the former has much worse performance. ScyllaDB is incredibly [easy
+to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
 
 THREAD SAFETY
 -------------
