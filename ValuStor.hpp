@@ -113,6 +113,7 @@ class ValuStor
 {
   public:
     typedef enum ErrorCode{
+      VALUE_ERROR = -9,
       UNKNOWN_ERROR = -8,
       BIND_ERROR = -7,
       QUERY_ERROR = -6,
@@ -120,7 +121,6 @@ class ValuStor
       PREPARED_SELECT_FAILED = -4,
       PREPARED_INSERT_FAILED = -3,
       SESSION_FAILED = -2,
-      INVALID_KEY = -1,
       SUCCESS = 0,
       NOT_FOUND = 1
     } ErrorCode_t;
@@ -135,23 +135,27 @@ class ValuStor
     // ****************************************************************************************************
     /// @class         Result
     ///
+    template<typename RVal_T>
     class Result
     {
       public:
         const ErrorCode_t error_code;
         const std::string result_message;
-        const std::string data;
+        const RVal_T data;
+        const size_t size;
 
-        Result(ErrorCode_t error_code, std::string result_message, std::string data = ""):
+        Result(ErrorCode_t error_code, std::string result_message, RVal_T data, size_t size = 0):
           error_code(error_code),
           result_message(result_message),
-          data(data)
+          data(data),
+          size(size)
         {}
 
         Result(const Result &that):
           error_code(that.error_code),
           result_message(that.result_message),
-          data(that.data)
+          data(that.data),
+          size(that.size)
         {}
 
         explicit operator bool() const{
@@ -166,7 +170,7 @@ class ValuStor
     const CassPrepared* prepared_select;
     std::atomic<bool> is_initialized;
     std::atomic<bool> do_terminate_thread;
-    std::deque<std::tuple<long,std::string,int32_t>> backlog_queue;
+    std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog_queue;
     std::mutex backlog_mutex;
     std::thread backlog_thread;
 
@@ -214,7 +218,7 @@ class ValuStor
               //
               // Get all the entries in the backlog so we can attempt to send them.
               //
-              std::deque<std::tuple<long,std::string,int32_t>> backlog;
+              std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog;
               {
                 std::lock_guard<std::mutex> lock( this->backlog_mutex );
                 backlog = this->backlog_queue;
@@ -225,9 +229,9 @@ class ValuStor
               // Attempt to process the backlog.
               //
               if(backlog.size() > 0){
-                std::vector<std::tuple<long,std::string,int32_t>> unprocessed;
+                std::vector<std::tuple<Key_T,Val_T,int32_t>> unprocessed;
                 for(auto& request : backlog){
-                  ValuStor::Result result = this->store(std::get<0>(request), std::get<1>(request), std::get<2>(request), DISALLOW_BACKLOG);
+                  ValuStor::Result<Val_T> result = this->store(std::get<0>(request), std::get<1>(request), std::get<2>(request), DISALLOW_BACKLOG);
                   if(not result){
                     unprocessed.push_back(request);
                   } // if
@@ -302,17 +306,70 @@ class ValuStor
     static CassError bind(CassStatement* stmt, size_t index, const cass_bool_t& value) {
       return cass_statement_bind_bool(stmt, index, value);
     }
-    static CassError bind(CassStatement* stmt, size_t index, const std::nullptr_t& value) {
-      (void)value;
-      return cass_statement_bind_null(stmt, index);
-    }
     static CassError bind(CassStatement* stmt, size_t index, const CassUuid& value) {
       return cass_statement_bind_uuid(stmt, index, value);
     }
     static CassError bind(CassStatement* stmt, size_t index, const cass_byte_t* value) {
       return cass_statement_bind_bytes(stmt, index, value, std::strlen((char*)value));
     }
-    
+
+    static CassError get(const CassValue* value, int8_t* target, size_t* size){
+      *size = 1;
+      return cass_value_get_int8(value, target);
+    }
+    static CassError get(const CassValue* value, int16_t* target, size_t* size){
+      *size = 2;
+      return cass_value_get_int16(value, target);
+    }
+    static CassError get(const CassValue* value, int32_t* target, size_t* size){
+      *size = 4;
+      return cass_value_get_int32(value, target);
+    }
+    static CassError get(const CassValue* value, uint32_t* target, size_t* size){
+      *size = 4;
+      return cass_value_get_uint32(value, target);
+    }
+    static CassError get(const CassValue* value, int64_t* target, size_t* size){
+      *size = 8;
+      return cass_value_get_int64(value, target);
+    }
+    static CassError get(const CassValue* value, float* target, size_t* size){
+      *size = 4;
+      return cass_value_get_float(value, target);
+    }
+    static CassError get(const CassValue* value, double* target, size_t* size){
+      *size = 8;
+      return cass_value_get_double(value, target);
+    }
+    static CassError get(const CassValue* value, std::string* target, size_t* size){
+      const char* str;
+      size_t str_length;
+      CassError error = cass_value_get_string(value, &str, &str_length);
+      *target = std::string(str, str + str_length);
+      *size = str_length;
+      return error;
+    }
+    static CassError get(const CassValue* value, char** target, size_t* size){
+      const char* str;
+      size_t str_length;
+      CassError error = cass_value_get_string(value, &str, &str_length);
+      *target = str;
+      *size = str_length;
+      return error;
+    }
+    static CassError get(const CassValue* value, cass_bool_t* target, size_t* size){
+      return cass_value_get_bool(value, target);
+    }
+    static CassError get(const CassValue* value, CassUuid* target, size_t* size){
+      return cass_value_get_uuid(value, target);
+    }
+    static CassError get(const CassValue* value, cass_byte_t** target, size_t* size){
+      size_t array_length;
+      CassError error = cass_value_get_bytes(value, target, &array_length);
+      *size = array_length;
+      return error;
+    }
+
 
 
   private:
@@ -423,9 +480,10 @@ class ValuStor
     ///
     /// @return          If 'result.first', the string value in 'result.second', otherwise not found.
     ///
-    ValuStor::Result retrieve(const Key_T& key){
+    ValuStor::Result<Val_T> retrieve(const Key_T& key){
       ErrorCode_t error_code = ValuStor::UNKNOWN_ERROR;
       std::string error_message = "Scylla Error";
+      size_t size = 0;
       Val_T data;
 
       if(this->prepared_select == nullptr){
@@ -462,13 +520,15 @@ class ValuStor
                       const CassRow* row = cass_result_first_row(cass_result);
                       if (row != nullptr) {
                         const CassValue* value = cass_row_get_column(row, 0);
-                        const char* str;
-                        size_t str_length;
-                        cass_value_get_string(value, &str, &str_length);
-
-                        error_code = ValuStor::SUCCESS;
-                        error_message = "Value read successfully";
-                        data = std::string(str, str + str_length);
+                        CassError error = get(value, &data, &size);
+                        if(error != CASS_OK){
+                          error_code = ValuStor::VALUE_ERROR;
+                          error_message = "Scylla Error: Unable to get the value: " + std::string(cass_error_desc(error));
+                        } // if
+                        else{
+                          error_code = ValuStor::SUCCESS;
+                          error_message = "Value read successfully";
+                        } // else
                       } // if
                       else{
                         error_code = ValuStor::NOT_FOUND;
@@ -488,7 +548,7 @@ class ValuStor
         } // if
       } // else
 
-      return ValuStor::Result(error_code, error_message, data);
+      return ValuStor::Result<Val_T>(error_code, error_message, data, size);
 
     }
 
@@ -502,75 +562,69 @@ class ValuStor
     ///
     /// @return          'true' if successful, 'false' otherwise.
     ///
-    ValuStor::Result store(const Key_T& key, const Val_T& value, int32_t seconds_ttl = 0, InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE){
+    ValuStor::Result<Val_T> store(const Key_T& key, const Val_T& value, int32_t seconds_ttl = 0, InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE){
       ErrorCode_t error_code = ValuStor::UNKNOWN_ERROR;
       std::string error_message = "Scylla Error";
 
-      if(key < 0){
-        error_code = ValuStor::INVALID_KEY;
-        error_message = "Scylla Error: Invalid 'key' specified";
+      if(insert_mode == USE_ONLY_BACKLOG){
+        std::lock_guard<std::mutex> lock(this->backlog_mutex);
+        this->backlog_queue.push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
       } // if
+      else if(this->prepared_insert == nullptr){
+        error_code = ValuStor::PREPARED_INSERT_FAILED;
+        error_message = "Scylla Error: Prepared Insert Failed";
+      } // else if
       else{
-        if(insert_mode == USE_ONLY_BACKLOG){
-          std::lock_guard<std::mutex> lock(this->backlog_mutex);
-          this->backlog_queue.push_back(std::tuple<long,std::string,int32_t>(key, value, seconds_ttl));
-        } // if
-        else if(this->prepared_insert == nullptr){
-          error_code = ValuStor::PREPARED_INSERT_FAILED;
-          error_message = "Scylla Error: Prepared Insert Failed";
-        } // else if
-        else{
-          CassStatement* statement = cass_prepared_bind(this->prepared_insert);
-          if(statement != nullptr){
-            CassError error = ValuStor::bind(statement, 0, key);
-            if(error == CASS_OK){
-              error = ValuStor::bind(statement, 1, value);
-            } // if
-            if(error == CASS_OK){
-              error = ValuStor::bind(statement, 2, seconds_ttl);
-            } // if
-            if(error != CASS_OK){
-              error_code = ValuStor::BIND_ERROR;
-              error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
-            } // if
-            else{
-              const std::vector<CassConsistency> consistency_levels = SCYLLA_WRITE_CONSISTENCIES;
-              for(auto& level : consistency_levels){
-                error = cass_statement_set_consistency(statement, level);
-                if(error != CASS_OK){
-                  error_code = ValuStor::CONSISTENCY_ERROR;
-                  error_message = "Scylla Error: Unable to set statement consistency: " + std::string(cass_error_desc(error));
-                } // if
-                else{
-                  CassFuture* result_future = cass_session_execute(this->session, statement);
-                  if(result_future != nullptr){
-                    cass_future_wait_timed(result_future, 2000000L); // Wait up to 2s
-                    if (cass_future_error_code(result_future) != CASS_OK) {
-                      error_code = ValuStor::QUERY_ERROR;
-                      error_message = logFutureErrorMessage(result_future, "Unable to run query");
-                    } // if
-                    else{
-                      error_code = ValuStor::SUCCESS;
-                      error_message = "Value stored successfully";
-                      cass_future_free(result_future);  // Free it here after a successful insertion, but prior to breaking out of the loop.
-                      break;
-                    } // else
-                    cass_future_free(result_future);
-                  } // if
-                } // else
-              } // for
-            } // else
-            cass_statement_free(statement);
+        CassStatement* statement = cass_prepared_bind(this->prepared_insert);
+        if(statement != nullptr){
+          CassError error = ValuStor::bind(statement, 0, key);
+          if(error == CASS_OK){
+            error = ValuStor::bind(statement, 1, value);
           } // if
-        } // else
-
-        if(error_code != ValuStor::SUCCESS and insert_mode == ALLOW_BACKLOG){
-          std::lock_guard<std::mutex> lock(this->backlog_mutex);
-          this->backlog_queue.push_back(std::tuple<long,std::string,int32_t>(key, value, seconds_ttl));
+          if(error == CASS_OK){
+            error = ValuStor::bind(statement, 2, seconds_ttl);
+          } // if
+          if(error != CASS_OK){
+            error_code = ValuStor::BIND_ERROR;
+            error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
+          } // if
+          else{
+            const std::vector<CassConsistency> consistency_levels = SCYLLA_WRITE_CONSISTENCIES;
+            for(auto& level : consistency_levels){
+              error = cass_statement_set_consistency(statement, level);
+              if(error != CASS_OK){
+                error_code = ValuStor::CONSISTENCY_ERROR;
+                error_message = "Scylla Error: Unable to set statement consistency: " + std::string(cass_error_desc(error));
+              } // if
+              else{
+                CassFuture* result_future = cass_session_execute(this->session, statement);
+                if(result_future != nullptr){
+                  cass_future_wait_timed(result_future, 2000000L); // Wait up to 2s
+                  if (cass_future_error_code(result_future) != CASS_OK) {
+                    error_code = ValuStor::QUERY_ERROR;
+                    error_message = logFutureErrorMessage(result_future, "Unable to run query");
+                  } // if
+                  else{
+                    error_code = ValuStor::SUCCESS;
+                    error_message = "Value stored successfully";
+                    cass_future_free(result_future);  // Free it here after a successful insertion, but prior to breaking out of the loop.
+                    break;
+                  } // else
+                  cass_future_free(result_future);
+                } // if
+              } // else
+            } // for
+          } // else
+          cass_statement_free(statement);
         } // if
       } // else
 
-      return ValuStor::Result(error_code, error_message);
+      if(error_code != ValuStor::SUCCESS and insert_mode == ALLOW_BACKLOG){
+        std::lock_guard<std::mutex> lock(this->backlog_mutex);
+        this->backlog_queue.push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
+      } // if
+
+      return ValuStor::Result<Val_T>(error_code, error_message, value);
 
     }
 };

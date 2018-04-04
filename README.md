@@ -131,16 +131,16 @@ The ValuStor::Result has the following data members:
 
 The ValuStor::ErrorCode_t is one of the following:
 ```C++
-  ValuStor::UNKNOWN_ERROR = -8
-  ValuStor::BIND_ERROR = -7
-  ValuStor::QUERY_ERROR = -6
-  ValuStor::CONSISTENCY_ERROR = -5
-  ValuStor::PREPARED_SELECT_FAILED = -4
-  ValuStor::PREPARED_INSERT_FAILED = -3
-  ValuStor::SESSION_FAILED = -2
-  ValuStor::INVALID_KEY = -1
-  ValuStor::SUCCESS = 0
-  ValuStor::NOT_FOUND = 1
+  ValuStor::VALUE_ERROR
+  ValuStor::UNKNOWN_ERROR
+  ValuStor::BIND_ERROR
+  ValuStor::QUERY_ERROR
+  ValuStor::CONSISTENCY_ERROR
+  ValuStor::PREPARED_SELECT_FAILED
+  ValuStor::PREPARED_INSERT_FAILED
+  ValuStor::SESSION_FAILED
+  ValuStor::SUCCESS
+  ValuStor::NOT_FOUND
 ```
 
 USAGE
@@ -155,12 +155,6 @@ Code:
     if(retrieve_result){
       std::cout << 1234 << " => " << result.data << std::endl;
     }
-    else{
-      std::cerr << retrieve_result.result_message << std::endl;
-    }
-  }
-  else{
-    std::cerr << store_result.result_message << std::endl;
   }
 ```
 
