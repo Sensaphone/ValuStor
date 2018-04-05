@@ -5,20 +5,8 @@
 #include <thread>
 
 int main(void){
-  { ValuStor<std::string, std::string> store; }
-  { ValuStor<int8_t, int8_t> store; }
-  { ValuStor<int16_t, int16_t> store; }
-  { ValuStor<int32_t, int32_t> store; }
-  { ValuStor<uint32_t, uint32_t> store; }
-  { ValuStor<int64_t, int64_t> store; }
-  { ValuStor<float, float> store; }
-  { ValuStor<double, double> store; }
-  { ValuStor<bool, bool> store; }
-  { ValuStor<CassUuid, CassUuid> store; }
-  { ValuStor<cass_byte_t*, cass_byte_t*> store; }
-  { ValuStor<char*, char*> store; }
 
-  ValuStor<long, std::string> store;
+  ValuStor<long, std::string> store("example.conf");
   {
     auto result = store.store(1234, "something", 60);
     if(result){

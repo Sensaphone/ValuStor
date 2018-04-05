@@ -29,74 +29,19 @@ other dealings in this Software without prior written authorization.
 #ifndef VALUE_STORE_H
 #define VALUE_STORE_H
 
-// *************************************************************
-// BEGINNING OF CONFIGURATION SECTION                         //
-// *************************************************************
-
-// ******************************************************
-// NOTE: EDIT THESE DEFINITIONS TO MATCH YOUR ENVIRONMENT
-// ******************************************************
-#define SCYLLA_DB_TABLE     std::string("cache.values")
-#define SCYLLA_KEY_FIELD    std::string("key")
-#define SCYLLA_VALUE_FIELD  std::string("value")
-#define SCYLLA_USERNAME     std::string("username")
-#define SCYLLA_PASSWORD     std::string("password")
-#define SCYLLA_IP_ADDRESSES std::string("192.168.0.1,192.168.0.2,192.168.0.3")
-
-//
-// The code will try for high consistency at first.
-// Failing that it will progressively lower it, trying to get *any* value, even if inconsistent.
-// Set the desired range of consistencies for your application.
-//
-// List of levels: ALL, EACH_QUORUM, QUORUM, LOCAL_QUORUM, ONE, TWO, THREE, LOCAL_ONE, ANY, SERIAL, LOCAL_SERIAL
-//
-// It is usually preferable to have write consistencies set as low as possible for performance reasons.
-// You would set writes to quorum if you expect to use read consistencies below quorum.
-//
-// The defaults are set for high performance caching with reasonable consistency.
-//
-#define SCYLLA_READ_CONSISTENCIES    { \
-                                       CASS_CONSISTENCY_LOCAL_QUORUM, \
-                                       CASS_CONSISTENCY_LOCAL_ONE, \
-                                       CASS_CONSISTENCY_ONE \
-                                     }
-#define SCYLLA_WRITE_CONSISTENCIES   { \
-                                       CASS_CONSISTENCY_LOCAL_ONE, \
-                                       CASS_CONSISTENCY_ONE, \
-                                       CASS_CONSISTENCY_ANY \
-                                     }
-
-//
-// The following are used to tune the client driver.
-// For highest performance, match the number of I/O threads to the number of cores available.
-//
-#define CLIENT_IO_THREADS                 (2)              // # of I/O threads that will handle query requests
-#define CLIENT_QUEUE_SIZE                 (8192)           // Fixed size queue that stores pending requests
-#define CLIENT_SERVER_CONNECTS_PER_THREAD (1)              // # connections made to each server in each IO thread.
-#define CLIENT_MAX_CONNECTS_PER_THREAD    (2)              // max # connections made to each server in each IO thread.
-#define CLIENT_MAX_CONC_CONNECT_CREATION  (1)              // max # connections created concurrently.
-#define CLIENT_MAX_CONCURRENT_REQUESTS    (100)            // max concurrent requests before new connection
-#define CLIENT_LOG_LEVEL                  (CASS_LOG_ERROR) // CASS_LOG_DISABLED, CASS_LOG_CRITICAL, CASS_LOG_ERROR, CASS_LOG_WARN,
-                                                           // CASS_LOG_INFO, CASS_LOG_DEBUG, CASS_LOG_TRACE
-
-//
-// Default Backlog Mode
-//
-#define DEFAULT_BACKLOG_MODE  ALLOW_BACKLOG // One of {DISALLOW_BACKLOG, ALLOW_BACKLOG, USE_ONLY_BACKLOG}
-
-// *************************************************************
-// END OF CONFIGURATION SECTION                               //
-// *************************************************************
-
-#include <deque>
-#include <string>
-#include <cstring>
+#include <algorithm>
 #include <atomic>
-#include <mutex>
-#include <thread>
-#include <vector>
 #include <chrono>
+#include <cstring>
+#include <deque>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <thread>
 #include <tuple>
+#include <vector>
 
 // See https://github.com/datastax/cpp-driver/releases
 // This has been tested with version 2.7.1.
@@ -126,9 +71,10 @@ class ValuStor
     } ErrorCode_t;
 
     typedef enum InsertMode{
+      DEFAULT_BACKLOG_MODE = -1,
       DISALLOW_BACKLOG = 0,
       ALLOW_BACKLOG = 1,
-      USE_ONLY_BACKLOG = 2    
+      USE_ONLY_BACKLOG = 2
     } InsertMode_t;
 
   public:
@@ -173,33 +119,204 @@ class ValuStor
     std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog_queue;
     std::mutex backlog_mutex;
     std::thread backlog_thread;
+    std::map<std::string, std::string> config;
+    InsertMode_t default_backlog_mode;
+    std::vector<CassConsistency> read_consistencies;
+    std::vector<CassConsistency> write_consistencies;
 
   public:
-    ValuStor(void):
+    ValuStor(std::string config_filename):
       cluster(nullptr),
       session(nullptr),
       prepared_insert(nullptr),
       prepared_select(nullptr),
       is_initialized(false),
-      do_terminate_thread(false)
+      do_terminate_thread(false),
+      default_backlog_mode(ALLOW_BACKLOG)
     {
+      //
+      // trim()
+      //
+      auto trim = [](std::string str) {
+        std::string s = str;
+        s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int c) {
+          return not std::isspace(c);
+        }));
+        s.erase(std::find_if(s.rbegin(), s.rend(), [](int c) {
+          return not std::isspace(c);
+        }).base(), s.end());
+        return s;
+      };
+
+      //
+      // str_to_int()
+      //
+      auto str_to_int = [](std::string str, int default_value){
+        try{
+          return std::stoi(str);
+        } // try
+        catch(const std::exception& exception){
+          return default_value;        
+        } // catch
+      };
+
+      //
+      // Load in the config
+      //
+      config = {
+        {"table", "cache.values"},
+        {"key_field", "key_field"},
+        {"value_field", "value_field"},
+        {"username", "username"},
+        {"password", "password"},
+        {"ip_addresses", "127.0.0.1"},
+        {"read_consistencies", "LOCAL_QUORUM, LOCAL_ONE, ONE"},
+        {"write_consistencies", "LOCAL_ONE, ONE, ANY"},
+        {"client_io_threads", "2"},
+        {"client_queue_size", "8192"},
+        {"client_server_connects_per_thread", "1"},
+        {"client_max_connects_per_thread", "2"},
+        {"client_max_conc_connect_creation", "1"},
+        {"client_max_concurrent_requests", "100"},
+        {"client_log_level", "2"},
+        {"default_backlog_mode", "1"}
+      };
+      try{
+        std::ifstream config_file(config_filename);
+        std::string line;
+        while(std::getline(config_file, line)){
+          auto comment_marker = line.find("#");
+          if(comment_marker != std::string::npos) {
+            line = line.substr(0, comment_marker);
+          } // if
+
+          auto equal_marker = line.find("=");
+          if(equal_marker != std::string::npos){
+            this->config[trim(line.substr(0, equal_marker))] = trim(line.substr(equal_marker + 1));
+          } // if
+        } // while
+      } // try
+      catch(const std::exception& exception){}
+
+      //
+      // Set the read/write consistencies
+      //
+      auto parse_consistencies = [&trim](std::string str){
+        std::vector<CassConsistency> consistencies;
+        std::stringstream ss(str);
+        std::string element;
+        while(std::getline(ss, element, ','))
+        {
+          element = trim(element);
+          CassConsistency consistency = element == "ALL"          ? CASS_CONSISTENCY_ALL :
+                                        element == "EACH_QUORUM"  ? CASS_CONSISTENCY_EACH_QUORUM :
+                                        element == "QUORUM"       ? CASS_CONSISTENCY_QUORUM :
+                                        element == "LOCAL_QUORUM" ? CASS_CONSISTENCY_LOCAL_QUORUM :
+                                        element == "ONE"          ? CASS_CONSISTENCY_ONE :
+                                        element == "TWO"          ? CASS_CONSISTENCY_THREE :
+                                        element == "LOCAL_ONE"    ? CASS_CONSISTENCY_LOCAL_ONE :
+                                        element == "ANY"          ? CASS_CONSISTENCY_ANY :
+                                        element == "SERIAL"       ? CASS_CONSISTENCY_SERIAL :
+                                        element == "LOCAL_SERIAL" ? CASS_CONSISTENCY_LOCAL_SERIAL :
+                                                                    CASS_CONSISTENCY_UNKNOWN;
+          if(consistency != CASS_CONSISTENCY_UNKNOWN){
+            consistencies.push_back(consistency);
+          } // if
+        }
+        if(consistencies.size() == 0){
+          consistencies.push_back(CASS_CONSISTENCY_ANY);
+        } // if
+        return consistencies;
+      };
+      this->read_consistencies = parse_consistencies(config.at("read_consistencies"));
+      this->write_consistencies = parse_consistencies(config.at("write_consistencies"));
+
+      //
+      // Set the default backlog mode.
+      //
+      int backlog_mode = str_to_int(config.at("default_backlog_mode"), 1);
+      this->default_backlog_mode = backlog_mode == 0 ? DISALLOW_BACKLOG :
+                                   backlog_mode == 2 ? USE_ONLY_BACKLOG :
+                                                       ALLOW_BACKLOG;
+
       //
       // Set the log level
       //
-      cass_log_set_level(CLIENT_LOG_LEVEL);
+      int log_level = str_to_int(config.at("client_log_level"), 2);
+      cass_log_set_level(log_level == 0 ? CASS_LOG_DISABLED :
+                         log_level == 1 ? CASS_LOG_CRITICAL :
+                         log_level == 2 ? CASS_LOG_ERROR :
+                         log_level == 3 ? CASS_LOG_WARN :
+                         log_level == 4 ? CASS_LOG_INFO :
+                         log_level == 5 ? CASS_LOG_DEBUG :
+                                          CASS_LOG_TRACE);
 
       //
       // Create the cluster profile once.
       //
       this->cluster = cass_cluster_new();
-      cass_cluster_set_credentials(this->cluster, SCYLLA_USERNAME.c_str(), SCYLLA_PASSWORD.c_str());
-      cass_cluster_set_contact_points(this->cluster, SCYLLA_IP_ADDRESSES.c_str());
-      cass_cluster_set_num_threads_io(this->cluster, CLIENT_IO_THREADS);
-      cass_cluster_set_queue_size_io(this->cluster, CLIENT_QUEUE_SIZE);
-      cass_cluster_set_core_connections_per_host(this->cluster, CLIENT_SERVER_CONNECTS_PER_THREAD);
-      cass_cluster_set_max_connections_per_host(this->cluster, CLIENT_MAX_CONNECTS_PER_THREAD);
-      cass_cluster_set_max_concurrent_creation(this->cluster, CLIENT_MAX_CONC_CONNECT_CREATION);
-      cass_cluster_set_max_concurrent_requests_threshold(this->cluster, CLIENT_MAX_CONCURRENT_REQUESTS);
+      cass_cluster_set_credentials(this->cluster, config.at("username").c_str(), config.at("password").c_str());
+      cass_cluster_set_contact_points(this->cluster, config.at("ip_addresses").c_str());
+      cass_cluster_set_num_threads_io(this->cluster, str_to_int(config.at("client_io_threads"), 2));
+      cass_cluster_set_queue_size_io(this->cluster, str_to_int(config.at("client_queue_size"), 8192));
+      cass_cluster_set_core_connections_per_host(this->cluster, str_to_int(config.at("client_server_connects_per_thread"), 1));
+      cass_cluster_set_max_connections_per_host(this->cluster, str_to_int(config.at("client_max_connects_per_thread"), 2));
+      cass_cluster_set_max_concurrent_creation(this->cluster, str_to_int(config.at("client_max_conc_connect_creation"), 1));
+      cass_cluster_set_max_concurrent_requests_threshold(this->cluster, str_to_int(config.at("client_max_concurrent_requests"), 100));
+
+      //
+      // Setup SSL (https://docs.datastax.com/en/developer/cpp-driver/2.0/topics/security/ssl/)
+      //
+      if(config.count("server_trusted_cert") or
+         (config.count("client_ssl_cert") and config.count("client_ssl_key"))){
+        CassSsl* ssl = cass_ssl_new();
+
+        //
+        // Server Certificate
+        //
+        if(config.count("server_trusted_cert")){
+          auto load_trusted_cert_file = [](const char* file, CassSsl* ssl) -> CassError{
+            std::ifstream input_file_stream(file);
+            std::stringstream string_buffer;
+            string_buffer << input_file_stream.rdbuf();
+            std::string certificate = string_buffer.str();
+            return cass_ssl_add_trusted_cert(ssl, certificate.c_str());
+          };
+          load_trusted_cert_file("path/server.pem", ssl); // May be repeated more than once for each file.
+
+          int verify_mode = str_to_int(config.at("server_verify_mode"), 1);
+          cass_ssl_set_verify_flags(ssl, verify_mode == 0 ? CASS_SSL_VERIFY_NONE :
+                                         verify_mode == 2 ? CASS_SSL_VERIFY_PEER_CERT | CASS_SSL_VERIFY_PEER_IDENTITY :
+                                         verify_mode == 3 ? CASS_SSL_VERIFY_PEER_CERT | CASS_SSL_VERIFY_PEER_IDENTITY_DNS :
+                                                            CASS_SSL_VERIFY_PEER_CERT);
+        } // if
+
+        //
+        // Client Certificate (Authentication)
+        //
+        if(config.count("client_ssl_cert") and config.count("client_ssl_key")){
+          auto load_ssl_cert = [](const char* file, CassSsl* ssl) -> CassError{
+            std::ifstream input_file_stream(file);
+            std::stringstream string_buffer;
+            string_buffer << input_file_stream.rdbuf();
+            std::string certificate = string_buffer.str();
+            return cass_ssl_set_cert(ssl, certificate.c_str());
+          };
+          load_ssl_cert(config.at("client_ssl_cert").c_str(), ssl);
+          auto load_private_key = [](const char* file, CassSsl* ssl, const char* key_password) -> CassError{
+            std::ifstream input_file_stream(file);
+            std::stringstream string_buffer;
+            string_buffer << input_file_stream.rdbuf();
+            std::string certificate = string_buffer.str();
+            return cass_ssl_set_private_key(ssl, certificate.c_str(), key_password);
+          };
+          load_private_key(config.at("client_ssl_key").c_str(), ssl, 
+              config.count("client_key_password") ? config.at("client_key_password").c_str() : nullptr);
+        } // if
+
+        cass_cluster_set_ssl(this->cluster, ssl);
+        cass_ssl_free(ssl);
+      } // if
 
       //
       // Initialize the connection
@@ -404,8 +521,8 @@ class ValuStor
             // Build the INSERT prepared statement
             //
             {
-              std::string statement = "INSERT INTO " + SCYLLA_DB_TABLE + " (" + SCYLLA_KEY_FIELD +
-                                      ", " + SCYLLA_VALUE_FIELD + ") VALUES (?, ?) USING TTL ?";
+              std::string statement = "INSERT INTO " + this->config.at("table") + " (" + this->config.at("key_field") +
+                                      ", " + this->config.at("value_field") + ") VALUES (?, ?) USING TTL ?";
               CassFuture* future = cass_session_prepare(this->session, statement.c_str());
               if(future != nullptr){
                 cass_future_wait_timed(future, 2000000L); // Wait up to 2s
@@ -425,8 +542,8 @@ class ValuStor
             // Build the SELECT prepared statement
             //
             {
-              std::string statement = "SELECT " + SCYLLA_VALUE_FIELD + " FROM " + SCYLLA_DB_TABLE +
-                                      " WHERE " + SCYLLA_KEY_FIELD + "=?";
+              std::string statement = "SELECT " + this->config.at("value_field") + " FROM " + this->config.at("table") +
+                                      " WHERE " + this->config.at("key_field") + "=?";
               CassFuture* future = cass_session_prepare(this->session, statement.c_str());
               if(future != nullptr){
                 cass_future_wait_timed(future, 2000000L); // Wait up to 2s
@@ -499,8 +616,7 @@ class ValuStor
             error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
           } // if
           else{
-            const std::vector<CassConsistency> consistency_levels = SCYLLA_READ_CONSISTENCIES;
-            for(auto& level : consistency_levels){
+            for(const auto& level : this->read_consistencies){
               error = cass_statement_set_consistency(statement, level);
               if(error != CASS_OK){
                 error_code = ValuStor::CONSISTENCY_ERROR;
@@ -563,6 +679,9 @@ class ValuStor
     /// @return          'true' if successful, 'false' otherwise.
     ///
     ValuStor::Result<Val_T> store(const Key_T& key, const Val_T& value, int32_t seconds_ttl = 0, InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE){
+      if(insert_mode == DEFAULT_BACKLOG_MODE){
+        insert_mode = this->default_backlog_mode;
+      } // if
       ErrorCode_t error_code = ValuStor::UNKNOWN_ERROR;
       std::string error_message = "Scylla Error";
 
@@ -589,8 +708,7 @@ class ValuStor
             error_message = "Scylla Error: Unable to bind parameters: " + std::string(cass_error_desc(error));
           } // if
           else{
-            const std::vector<CassConsistency> consistency_levels = SCYLLA_WRITE_CONSISTENCIES;
-            for(auto& level : consistency_levels){
+            for(const auto& level : this->write_consistencies){
               error = cass_statement_set_consistency(statement, level);
               if(error != CASS_OK){
                 error_code = ValuStor::CONSISTENCY_ERROR;
