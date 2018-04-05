@@ -123,47 +123,7 @@ class ValuStor
     InsertMode_t default_backlog_mode;
     std::vector<CassConsistency> read_consistencies;
     std::vector<CassConsistency> write_consistencies;
-
-  public:
-    ValuStor(std::string config_filename):
-      cluster(nullptr),
-      session(nullptr),
-      prepared_insert(nullptr),
-      prepared_select(nullptr),
-      is_initialized(false),
-      do_terminate_thread(false),
-      default_backlog_mode(ALLOW_BACKLOG)
-    {
-      //
-      // trim()
-      //
-      auto trim = [](std::string str) {
-        std::string s = str;
-        s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int c) {
-          return not std::isspace(c);
-        }));
-        s.erase(std::find_if(s.rbegin(), s.rend(), [](int c) {
-          return not std::isspace(c);
-        }).base(), s.end());
-        return s;
-      };
-
-      //
-      // str_to_int()
-      //
-      auto str_to_int = [](std::string str, int default_value){
-        try{
-          return std::stoi(str);
-        } // try
-        catch(const std::exception& exception){
-          return default_value;        
-        } // catch
-      };
-
-      //
-      // Load in the config
-      //
-      config = {
+    const std::map<std::string, std::string> default_config = {
         {"table", "cache.values"},
         {"key_field", "key_field"},
         {"value_field", "value_field"},
@@ -181,27 +141,57 @@ class ValuStor
         {"client_log_level", "2"},
         {"default_backlog_mode", "1"}
       };
+
+  private:
+    // ****************************************************************************************************
+    /// @name            trim
+    ///
+    /// @brief           Trim the leading and trailing space from a string and return it.
+    ///
+    /// @param           str
+    ///
+    /// @return          copy of the trimmed string.
+    ///
+    static std::string trim(const std::string str){
+      std::string s = str;
+      s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int c) {
+        return not std::isspace(c);
+      }));
+      s.erase(std::find_if(s.rbegin(), s.rend(), [](int c) {
+        return not std::isspace(c);
+      }).base(), s.end());
+      return s;
+    } // trim()
+
+    // ****************************************************************************************************
+    /// @name            str_to_int
+    ///
+    /// @brief           Convert a string to an integer, using a default value if an exception is thrown.
+    ///
+    /// @param           str
+    /// @param           default_value
+    ///
+    /// @return          The integer value converted from the string, or the default value on an error.
+    ///
+    static int str_to_int(std::string str, int default_value){
       try{
-        std::ifstream config_file(config_filename);
-        std::string line;
-        while(std::getline(config_file, line)){
-          auto comment_marker = line.find("#");
-          if(comment_marker != std::string::npos) {
-            line = line.substr(0, comment_marker);
-          } // if
-
-          auto equal_marker = line.find("=");
-          if(equal_marker != std::string::npos){
-            this->config[trim(line.substr(0, equal_marker))] = trim(line.substr(equal_marker + 1));
-          } // if
-        } // while
+        return std::stoi(str);
       } // try
-      catch(const std::exception& exception){}
+      catch(const std::exception& exception){
+        return default_value;        
+      } // catch
+    } // str_to_int()
 
+    // ****************************************************************************************************
+    /// @name            configure
+    ///
+    /// @brief           Configure the connection. The interal configuration must be valid.
+    ///
+    void configure(void){
       //
       // Set the read/write consistencies
       //
-      auto parse_consistencies = [&trim](std::string str){
+      auto parse_consistencies = [](std::string str){
         std::vector<CassConsistency> consistencies;
         std::stringstream ss(str);
         std::string element;
@@ -372,6 +362,88 @@ class ValuStor
         catch(...){}
       });
       backlog_thread.detach();
+    } // configure()
+
+  public:
+    // ****************************************************************************************************
+    /// @name            constructor
+    ///
+    /// @brief           Create a ValuStor, loading the configuration from the supplied configuration.
+    ///
+    ValuStor(const std::map<std::string, std::string> configuration):
+      cluster(nullptr),
+      session(nullptr),
+      prepared_insert(nullptr),
+      prepared_select(nullptr),
+      is_initialized(false),
+      do_terminate_thread(false),
+      default_backlog_mode(ALLOW_BACKLOG)
+    {
+      //
+      // Use the configuration supplied.
+      //
+      for(const auto& pair : configuration){
+        std::string key = trim(pair.first);
+        if(this->default_config.count(key) != 0){
+          this->config[key] = pair.second;
+        } // if
+      } // if
+
+      //
+      // Copy in any missing defaults
+      //
+      for(const auto& pair : this->default_config){
+        std::string key = trim(pair.first);
+        if(this->config.count(key) == 0){
+          this->config[key] = pair.second;
+        } // if
+      } // for
+
+      //
+      // Configure the connection
+      //
+      this->configure();
+    }
+
+    // ****************************************************************************************************
+    /// @name            constructor
+    ///
+    /// @brief           Create a ValuStor, loading the configuration from a file.
+    ///
+    ValuStor(const std::string config_filename):
+      cluster(nullptr),
+      session(nullptr),
+      prepared_insert(nullptr),
+      prepared_select(nullptr),
+      is_initialized(false),
+      do_terminate_thread(false),
+      default_backlog_mode(ALLOW_BACKLOG)
+    {
+      //
+      // Load in the config
+      //
+      config = default_config;
+      try{
+        std::ifstream config_file(config_filename);
+        std::string line;
+        while(std::getline(config_file, line)){
+          auto comment_marker = line.find("#");
+          if(comment_marker != std::string::npos) {
+            line = line.substr(0, comment_marker);
+          } // if
+
+          auto equal_marker = line.find("=");
+          if(equal_marker != std::string::npos){
+            this->config[trim(line.substr(0, equal_marker))] = trim(line.substr(equal_marker + 1));
+          } // if
+        } // while
+      } // try
+      catch(const std::exception& exception){}
+
+      //
+      // Configure the connection
+      //
+      this->configure();
     }
 
     ~ValuStor(void)

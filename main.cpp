@@ -5,8 +5,19 @@
 #include <thread>
 
 int main(void){
-
+  #if 1
+  ValuStor<long, std::string> store({
+        {"table", "cache.values"},
+        {"key_field", "key_field"},
+        {"value_field", "value_field"},
+        {"username", "username"},
+        {"password", "password"},
+        {"ip_addresses", "127.0.0.1"}
+  });
+  #else
   ValuStor<long, std::string> store("example.conf");
+  #endif
+
   {
     auto result = store.store(1234, "something", 60);
     if(result){

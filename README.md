@@ -1,5 +1,4 @@
-PURPOSE
--------
+## PURPOSE
 This project is a key-value pair database intended as an alternative to memcached.
 It is an easy to use, single-file, header-only C++11-compatible project.
 
@@ -39,8 +38,7 @@ records is supported. Another option is just to allow some records to fall out o
 be reloaded from disk from time-to-time. The extreme performance of ScyllaDB makes this relatively
 painless for most applications.
 
-KEY FEATURES
-------------
+## KEY FEATURES
 * Single header-only implementation makes it easy to drop into C++ projects.
 * Supports a variety of C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
@@ -55,63 +53,45 @@ KEY FEATURES
 * There is no special client configuration required for redundancy, scalability, or multi-thread performance.
 * RAM-like performance for most applications
 
-CONFIGURATION
--------------
-All configuration options, including server information, are the top of the header file.
-
-The only requirement is to set the following:
-```C++
-  #define SCYLLA_DB_TABLE     std::string("<database>.<table>")
-  #define SCYLLA_KEY_FIELD    std::string("<key field>")
-  #define SCYLLA_VALUE_FIELD  std::string("<value field>")
-  #define SCYLLA_USERNAME     std::string("<username>")
-  #define SCYLLA_PASSWORD     std::string("<password>")
-  #define SCYLLA_IP_ADDRESSES std::string("<ip_address_1>,<ip_address_2>,<ip_address_3>")
+## CONFIGURATION
+Configuration can use either a configuration file or setting the same configuration at runtime. See the API documentation. The only requirement is to set the following fields:
+```
+  table = <database>.<table>
+  key_field = <key field>
+  value_field = <value field>
+  username = <username>
+  password = <password>
+  ip_addresses = <ip_address_1>,<ip_address_2>,<ip_address_3>
 ```
 
-Given a schema of a scylla table...
+The schema of a scylla table should be setup as follows:
 ```sql
-  CREATE TABLE cache.values (
-    key bigint PRIMARY KEY,
-    value text
+  CREATE TABLE <database>.<table> (
+    <key_field> bigint PRIMARY KEY,
+    <value_field> text
   ) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}
     AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
 ```
 
-...the following are used in the configuration:
-```
-  <database> = cache
-  <table> = values
-  <key field> = key
-  <value field> = value
-```
-
-The following types are supported in the 'key' or 'value' fields in the CREATE TABLE:
-* int8 (int8_t)
-* int16 (int16_t)
-* int32 (int32_t)
-* uint32 (uint32_t)
-* int64 (int64_t)
+The following Cassandra data types are supported in the CREATE TABLE:
+* tinyint (int8_t)
+* smallint (int16_t)
+* int (int32_t)
+* bigint (uint32_t and int64_t)
 * float (float)
 * double (double)
-* bool (cass_bool_t)
-* string (std::string and char*)
-* bytes (cass_byte_t*)
+* boolean (cass_bool_t)
+* varchar, text, and ascii (std::string)
+* blob (cass_byte_t*)
 * uuid (CassUuid)
 
-We don't support the following, but the c++ driver does:
-* custom
-* inet
-* decimal
-* collection
-* tuple
-* user-defined type
-
-API
----
-ValuStor is implemented as a template class using only a default constructor.
+## API
+ValuStor is implemented as a template class using two constructors. See the usage documentation.
 ```C++
   template<typename Key_T, typename Val_T> class ValuStor
+
+  ValuStor(std::string config_file)
+  ValuStor(std::map<std::string, std::string> configuration_kvp)
 ```
 
 The public API is very simple:
@@ -145,12 +125,31 @@ The ValuStor::ErrorCode_t is one of the following:
   ValuStor::NOT_FOUND
 ```
 
-USAGE
------
+## USAGE
 
 Code:
 ```C++
-  ValuStor<long, std::string> valuestore;
+  ValuStor<long, std::string> valuestore("example.conf");
+  auto store_result = valuestore.store(1234, "value");
+  if(store_result){
+    auto retrieve_result = valuestore.retrieve(1234);
+    if(retrieve_result){
+      std::cout << 1234 << " => " << result.data << std::endl;
+    }
+  }
+```
+
+or
+
+```C++
+  ValuStor<long, std::string> valuestore({
+        {"table", "cache.values"},
+        {"key_field", "key_field"},
+        {"value_field", "value_field"},
+        {"username", "username"},
+        {"password", "password"},
+        {"ip_addresses", "127.0.0.1"}
+  });
   auto store_result = valuestore.store(1234, "value");
   if(store_result){
     auto retrieve_result = valuestore.retrieve(1234);
@@ -166,18 +165,26 @@ Output:
 ```
 
 
-DEPENDENCIES
-------------
+## DEPENDENCIES
 The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
-This project has only been tested with version 2.7.1, but in principle it should work with other versions.
-If using g++, it must be linked with -L/path/to/libcassandra.so/ -lcassandra.
+This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
+If using g++, it must be linked with -L/path/to/libcassandra.so/ -lcassandra. Example installation:
+```sh
+  wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
+  tar xvfz 2.8.1.tar.gz
+  cd cpp-driver-2.8.1
+  mkdir build
+  cd build
+  cmake ..
+  make
+  make install
+```
 
 An installation of either Cassandra or ScyllaDB is required. The latter is strongly
 recommended for this application, as the former has much worse performance. ScyllaDB is incredibly [easy
 to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
 
-THREAD SAFETY
--------------
+## THREAD SAFETY
 The cassandra driver fully supports multi-threaded access.
 This project is completely thread safe.
 It is lockless, except for the backlog. Locks are only held if needed and for as short a time as possible.
@@ -186,14 +193,12 @@ Multi-threaded inserts are generally higher performing than single-threaded inse
 NOTE: The multi-threaded performance of the cassandra driver is higher performing than the backlog thread.
       Backlog should only be used to increase data availability, not to increase performance.
 
-ATOMICITY
----------
+## ATOMICITY
 All write operations are performed atomically, but depending on the consistency level unexpected results may occur.
 If the order is strictly important, all reads and writes must be performed at QUORUM consistency or higher.
 There is no way to read-and-modify (including prepending/appending) data atomically.
 
-KNOWN ISSUES
--------------
+## KNOWN ISSUES
 The backlog has a number of known issues:
 1. If the client cannot connect to a server and never has, failed ValuStor::store() calls will use the backlog queue.
    Even if the server becomes accessible, the backlog thread will not begin to process.
@@ -202,8 +207,7 @@ The backlog has a number of known issues:
 1. Backlog entries may be inserted out-of-order in some cases.
 1. Retrievals do not check the backlog.
 
-LICENSE
--------
+## LICENSE
 MIT License
 
 Copyright (c) 2017-2018 Sensaphone
