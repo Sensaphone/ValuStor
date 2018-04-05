@@ -36,6 +36,7 @@ other dealings in this Software without prior written authorization.
 #include <deque>
 #include <fstream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -115,14 +116,16 @@ class ValuStor
     const CassPrepared* prepared_insert;
     const CassPrepared* prepared_select;
     std::atomic<bool> is_initialized;
-    std::atomic<bool> do_terminate_thread;
-    std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog_queue;
-    std::mutex backlog_mutex;
+    std::mutex initialization_mutex;
     std::thread backlog_thread;
     std::map<std::string, std::string> config;
     InsertMode_t default_backlog_mode;
     std::vector<CassConsistency> read_consistencies;
     std::vector<CassConsistency> write_consistencies;
+    std::atomic<bool>* do_terminate_thread_ptr;
+    std::shared_ptr<std::atomic<bool>> is_processing_backlog_ptr;
+    std::mutex* backlog_mutex_ptr;
+    std::deque<std::tuple<Key_T,Val_T,int32_t>>* backlog_queue_ptr;
     const std::map<std::string, std::string> default_config = {
         {"table", "cache.values"},
         {"key_field", "key_field"},
@@ -307,62 +310,207 @@ class ValuStor
         cass_cluster_set_ssl(this->cluster, ssl);
         cass_ssl_free(ssl);
       } // if
+    } // configure()
 
+    // ****************************************************************************************************
+    /// @name            initialize
+    ///
+    /// @brief           Initialize the connection given a valid CassCluster* already setup.
+    ///
+    void initialize(void){
       //
-      // Initialize the connection
+      // Only initialize once.
       //
-      this->initialize();
+      if(not this->is_initialized){
+        this->session = cass_session_new();
+        CassFuture* connect_future = cass_session_connect(this->session, cluster);
+        if(connect_future != nullptr){
+          cass_future_wait_timed(connect_future, 4000000L); // Wait up to 4s
+          if (cass_future_error_code(connect_future) == CASS_OK) {
+            //
+            // Build the INSERT prepared statement
+            //
+            {
+              std::string statement = "INSERT INTO " + this->config.at("table") + " (" + this->config.at("key_field") +
+                                      ", " + this->config.at("value_field") + ") VALUES (?, ?) USING TTL ?";
+              CassFuture* future = cass_session_prepare(this->session, statement.c_str());
+              if(future != nullptr){
+                cass_future_wait_timed(future, 2000000L); // Wait up to 2s
+                if (cass_future_error_code(future) == CASS_OK) {
+                  this->prepared_insert = cass_future_get_prepared(future);
+                } // if
+                else{
+                  //
+                  // Error: Unable to prepare insert statement
+                  //
+                } // else
+                cass_future_free(future);
+              } // if
+            }
 
+            //
+            // Build the SELECT prepared statement
+            //
+            {
+              std::string statement = "SELECT " + this->config.at("value_field") + " FROM " + this->config.at("table") +
+                                      " WHERE " + this->config.at("key_field") + "=?";
+              CassFuture* future = cass_session_prepare(this->session, statement.c_str());
+              if(future != nullptr){
+                cass_future_wait_timed(future, 2000000L); // Wait up to 2s
+                if (cass_future_error_code(future) == CASS_OK) {
+                  this->prepared_select = cass_future_get_prepared(future);
+                } // if
+                else{
+                  //
+                  // Error: Unable to prepare select statement
+                  //
+                } // else
+                cass_future_free(future);
+              } // if
+            }
+          } // if
+          else{
+            //
+            // Error: Unable to connect
+            //
+          } // else
+          cass_future_free(connect_future);
+
+          if(this->session != nullptr and this->prepared_insert != nullptr and this->prepared_select != nullptr){
+            this->is_initialized = true;
+          } // if
+          else{
+            if(this->prepared_insert != nullptr){
+              cass_prepared_free(this->prepared_insert);
+              this->prepared_insert = nullptr;
+            } // if
+            if(this->prepared_select != nullptr){
+              cass_prepared_free(this->prepared_select);
+              this->prepared_select = nullptr;
+            } // if
+            if(this->session != nullptr){
+              cass_session_free(this->session);
+              this->session = nullptr;
+            } // if
+          } // else
+        } // if
+      } // if
+    } // initialize
+
+    // ****************************************************************************************************
+    /// @name            run_backlog_thread
+    ///
+    /// @brief           Run the backlog thread.
+    ///
+    void run_backlog_thread(void){
       //
       // Start the backlog thread
       //
-      do_terminate_thread = false;
-      this->backlog_thread = std::thread([&](void){
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        try{
-          while(not do_terminate_thread){
-            if(this->is_initialized){
-              //
-              // Get all the entries in the backlog so we can attempt to send them.
-              //
-              std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog;
-              {
-                std::lock_guard<std::mutex> lock( this->backlog_mutex );
-                backlog = this->backlog_queue;
-                this->backlog_queue.clear();
-              }
+      std::atomic<bool> are_pointers_setup(false);
 
-              //
-              // Attempt to process the backlog.
-              //
-              if(backlog.size() > 0){
-                std::vector<std::tuple<Key_T,Val_T,int32_t>> unprocessed;
-                for(auto& request : backlog){
+      this->backlog_thread = std::thread([&](void){
+        //
+        // Setup the pointers back to the master thread.
+        // The backlog thread will never close until the master thread tells it to close.
+        // At that point it can terminate after the master thread, so it must control the data to prevent seg faults.
+        //
+        std::atomic<bool> do_terminate_thread(false);
+        std::mutex backlog_mutex;
+        std::shared_ptr<std::atomic<bool>> is_processing_backlog = this->is_processing_backlog_ptr;
+        std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog_queue;
+
+        this->do_terminate_thread_ptr = &do_terminate_thread;
+        this->backlog_mutex_ptr = &backlog_mutex;
+        this->backlog_queue_ptr = &backlog_queue;
+
+        //
+        // This tells the master thread that we are processing.
+        // It will not go out of scope until we set processing to 'false', allowing both threads to poll is_initialized without locking.
+        //
+        *is_processing_backlog = true;
+
+        //
+        // Notify the master thread that the pointers are setup and it is okay for 'are_pointers_setup' to go out-of-scope.
+        //
+        are_pointers_setup = true;
+
+        //
+        // Wait for the thread to initialize.
+        // During this period, the master thread cannot destruct since we are still accessing "is_initialized"
+        // "do_terminate_thread" must be set first.
+        // Once initialization takes place, we never need to access it again.
+        //
+        while(not do_terminate_thread and not this->is_initialized){
+          try{
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+          } // try
+          catch(...){}
+        } // while
+        *is_processing_backlog = false;
+        while(not do_terminate_thread){
+          try{
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+
+            //
+            // Get all the entries in the backlog so we can attempt to send them.
+            //
+            std::deque<std::tuple<Key_T,Val_T,int32_t>> backlog;
+            {
+              std::lock_guard<std::mutex> lock( backlog_mutex );
+              backlog = backlog_queue;
+              backlog_queue.clear();
+              *is_processing_backlog = backlog.size() > 0 and not do_terminate_thread;
+            }
+
+            //
+            // Attempt to process the backlog.
+            //
+            if(*is_processing_backlog){
+              std::vector<std::tuple<Key_T,Val_T,int32_t>> unprocessed;
+              for(auto& request : backlog){
+                if(not do_terminate_thread){
                   ValuStor::Result<Val_T> result = this->store(std::get<0>(request), std::get<1>(request), std::get<2>(request), DISALLOW_BACKLOG);
                   if(not result){
                     unprocessed.push_back(request);
                   } // if
-                } // for
+                } // if
+              } // for
 
-                //
-                // Reinsert the failed requests back into the front of the queue.
-                //
-                if(unprocessed.size() != 0){
-                  std::lock_guard<std::mutex> lock( this->backlog_mutex );
-                  this->backlog_queue.insert(this->backlog_queue.begin(), unprocessed.begin(), unprocessed.end());
+              //
+              // Reinsert the failed requests back into the front of the queue.
+              //
+              if(unprocessed.size() != 0){
+                std::lock_guard<std::mutex> lock( backlog_mutex );
+                if(not do_terminate_thread){
+                  backlog_queue.insert(backlog_queue.begin(), unprocessed.begin(), unprocessed.end());
                 } // if
               } // if
             } // if
-            else{
-              std::this_thread::sleep_for(std::chrono::seconds(8));
-            } // else
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-          } // while
-        } // try
-        catch(...){}
+
+            //
+            // Let the master process know that a backlog is no longer running.
+            //
+            *is_processing_backlog = false;
+          } // try
+          catch(...){}
+        } // while
+
+        //
+        // Acquire a lock one last time to ensure that the master thread isn't using the lock in the destructor.
+        //
+        {
+          std::lock_guard<std::mutex> lock( backlog_mutex );
+        }
       });
+
+      //
+      // Wait for the thread to initialize and detach it from this thread.
+      //
       backlog_thread.detach();
-    } // configure()
+      while(not are_pointers_setup){
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      } // while
+    } // run_backlog_thread()
 
   public:
     // ****************************************************************************************************
@@ -376,8 +524,11 @@ class ValuStor
       prepared_insert(nullptr),
       prepared_select(nullptr),
       is_initialized(false),
-      do_terminate_thread(false),
-      default_backlog_mode(ALLOW_BACKLOG)
+      default_backlog_mode(ALLOW_BACKLOG),
+      do_terminate_thread_ptr(nullptr),
+      is_processing_backlog_ptr(new std::atomic<bool>(false)),
+      backlog_mutex_ptr(nullptr),
+      backlog_queue_ptr(nullptr)
     {
       //
       // Use the configuration supplied.
@@ -390,7 +541,7 @@ class ValuStor
       } // if
 
       //
-      // Copy in any missing defaults
+      // Add in any missing defaults
       //
       for(const auto& pair : this->default_config){
         std::string key = trim(pair.first);
@@ -403,6 +554,16 @@ class ValuStor
       // Configure the connection
       //
       this->configure();
+
+      //
+      // Initialize the connection
+      //
+      this->initialize();
+
+      //
+      // Start the backlog thread
+      //
+      this->run_backlog_thread();
     }
 
     // ****************************************************************************************************
@@ -416,8 +577,11 @@ class ValuStor
       prepared_insert(nullptr),
       prepared_select(nullptr),
       is_initialized(false),
-      do_terminate_thread(false),
-      default_backlog_mode(ALLOW_BACKLOG)
+      default_backlog_mode(ALLOW_BACKLOG),
+      do_terminate_thread_ptr(nullptr),
+      is_processing_backlog_ptr(new std::atomic<bool>(false)),
+      backlog_mutex_ptr(nullptr),
+      backlog_queue_ptr(nullptr)
     {
       //
       // Load in the config
@@ -444,12 +608,46 @@ class ValuStor
       // Configure the connection
       //
       this->configure();
+
+      //
+      // Initialize the connection
+      //
+      this->initialize();
+
+      //
+      // Start the backlog thread
+      //
+      this->run_backlog_thread();
     }
 
     ~ValuStor(void)
     {
-      do_terminate_thread = true;
-      this->is_initialized = false;
+      //
+      // Terminate the backlog thread, but be careful as state is shared.
+      // By terminating the thread and clearing the queue while holding the lock, we can prevent most race conditions.
+      //
+      bool was_backlog_running = false;
+      {
+        std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
+        was_backlog_running = *this->is_processing_backlog_ptr;
+        this->backlog_queue_ptr->clear();
+        *this->do_terminate_thread_ptr = true;
+      }
+
+      //
+      // If the backlog thread was processing, we must wait for it to finish so it isn't accessing any of this' data.
+      // When it isn't in processing, it cannot reenter processing without knowing that "do_terminate_thread" was set.
+      // If the backlog was not running, it is impossible for there to be a race condition.
+      //
+      if(was_backlog_running){
+        while(*this->is_processing_backlog_ptr){
+          std::this_thread::sleep_for(std::chrono::seconds(1));
+        } // while
+      } // if
+
+      //
+      // Close up the cassandra connection.
+      //
       if(this->prepared_select != nullptr){
         cass_prepared_free(this->prepared_select);
       } // if
@@ -574,91 +772,6 @@ class ValuStor
       return "Scylla Error: " + description + ": '" + std::string(message, message_length) + "'";
     }
 
-    // ****************************************************************************************************
-    /// @name            initialize
-    ///
-    /// @brief           Initialize the connection given a valid CassCluster* already setup.
-    ///
-    void initialize(void){
-      //
-      // Only initialize once.
-      //
-      if(not this->is_initialized){
-        this->session = cass_session_new();
-        CassFuture* connect_future = cass_session_connect(this->session, cluster);
-        if(connect_future != nullptr){
-          cass_future_wait_timed(connect_future, 4000000L); // Wait up to 4s
-          if (cass_future_error_code(connect_future) == CASS_OK) {
-            //
-            // Build the INSERT prepared statement
-            //
-            {
-              std::string statement = "INSERT INTO " + this->config.at("table") + " (" + this->config.at("key_field") +
-                                      ", " + this->config.at("value_field") + ") VALUES (?, ?) USING TTL ?";
-              CassFuture* future = cass_session_prepare(this->session, statement.c_str());
-              if(future != nullptr){
-                cass_future_wait_timed(future, 2000000L); // Wait up to 2s
-                if (cass_future_error_code(future) == CASS_OK) {
-                  this->prepared_insert = cass_future_get_prepared(future);
-                } // if
-                else{
-                  //
-                  // Error: Unable to prepare insert statement
-                  //
-                } // else
-                cass_future_free(future);
-              } // if
-            }
-
-            //
-            // Build the SELECT prepared statement
-            //
-            {
-              std::string statement = "SELECT " + this->config.at("value_field") + " FROM " + this->config.at("table") +
-                                      " WHERE " + this->config.at("key_field") + "=?";
-              CassFuture* future = cass_session_prepare(this->session, statement.c_str());
-              if(future != nullptr){
-                cass_future_wait_timed(future, 2000000L); // Wait up to 2s
-                if (cass_future_error_code(future) == CASS_OK) {
-                  this->prepared_select = cass_future_get_prepared(future);
-                } // if
-                else{
-                  //
-                  // Error: Unable to prepare select statement
-                  //
-                } // else
-                cass_future_free(future);
-              } // if
-            }
-          } // if
-          else{
-            //
-            // Error: Unable to connect
-            //
-          } // else
-          cass_future_free(connect_future);
-
-          if(this->session != nullptr and this->prepared_insert != nullptr and this->prepared_select != nullptr){
-            this->is_initialized = true;
-          } // if
-          else{
-            if(this->prepared_insert != nullptr){
-              cass_prepared_free(this->prepared_insert);
-              this->prepared_insert = nullptr;
-            } // if
-            if(this->prepared_select != nullptr){
-              cass_prepared_free(this->prepared_select);
-              this->prepared_select = nullptr;
-            } // if
-            if(this->session != nullptr){
-              cass_session_free(this->session);
-              this->session = nullptr;
-            } // if
-          } // else
-        } // if
-      } // if
-    } // initialize
-
   public:
     // ****************************************************************************************************
     /// @name            retrieve
@@ -670,6 +783,14 @@ class ValuStor
     /// @return          If 'result.first', the string value in 'result.second', otherwise not found.
     ///
     ValuStor::Result<Val_T> retrieve(const Key_T& key){
+      //
+      // Make sure we are initialized
+      //
+      if(not this->is_initialized){
+        std::lock_guard<std::mutex> lock(initialization_mutex);
+        this->initialize(); // Only one thread at a time can try to initialize. Once successful store.is_initialized is set.
+      } // if
+
       ErrorCode_t error_code = ValuStor::UNKNOWN_ERROR;
       std::string error_message = "Scylla Error";
       size_t size = 0;
@@ -751,6 +872,14 @@ class ValuStor
     /// @return          'true' if successful, 'false' otherwise.
     ///
     ValuStor::Result<Val_T> store(const Key_T& key, const Val_T& value, int32_t seconds_ttl = 0, InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE){
+      //
+      // Make sure we are initialized
+      //
+      if(not this->is_initialized){
+        std::lock_guard<std::mutex> lock(initialization_mutex);
+        this->initialize(); // Only one thread at a time can try to initialize. Once successful store.is_initialized is set.
+      } // if
+
       if(insert_mode == DEFAULT_BACKLOG_MODE){
         insert_mode = this->default_backlog_mode;
       } // if
@@ -758,8 +887,8 @@ class ValuStor
       std::string error_message = "Scylla Error";
 
       if(insert_mode == USE_ONLY_BACKLOG){
-        std::lock_guard<std::mutex> lock(this->backlog_mutex);
-        this->backlog_queue.push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
+        std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
+        this->backlog_queue_ptr->push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
       } // if
       else if(this->prepared_insert == nullptr){
         error_code = ValuStor::PREPARED_INSERT_FAILED;
@@ -810,8 +939,8 @@ class ValuStor
       } // else
 
       if(error_code != ValuStor::SUCCESS and insert_mode == ALLOW_BACKLOG){
-        std::lock_guard<std::mutex> lock(this->backlog_mutex);
-        this->backlog_queue.push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
+        std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
+        this->backlog_queue_ptr->push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
       } // if
 
       return ValuStor::Result<Val_T>(error_code, error_message, value);

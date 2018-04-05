@@ -187,11 +187,12 @@ to setup](http://docs.scylladb.com/getting-started/). This project has been test
 ## THREAD SAFETY
 The cassandra driver fully supports multi-threaded access.
 This project is completely thread safe.
-It is lockless, except for the backlog. Locks are only held if needed and for as short a time as possible.
-Multi-threaded inserts are generally higher performing than single-threaded inserts if it can use multiple CPU cores.
+It is lockless, except for using the backlog. Locks are only held if needed and for as short a time as possible.
+Multi-threaded stores are generally higher performing than single-threaded stores if it can use multiple CPU cores.
 
 NOTE: The multi-threaded performance of the cassandra driver is higher performing than the backlog thread.
-      Backlog should only be used to increase data availability, not to increase performance.
+      The backlog should only be used to increase data availability, not to increase performance.
+      It is single-thread and uses locking, so it will always have worse performance.
 
 ## ATOMICITY
 All write operations are performed atomically, but depending on the consistency level unexpected results may occur.
