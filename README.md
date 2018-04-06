@@ -175,6 +175,9 @@ Connection management is automatic.
 
 Code:
 ```C++
+  #include "ValuStor.hpp"
+  ...  
+
   ValuStor<long, std::string> valuestore("example.conf");
   auto store_result = valuestore.store(1234, "value");
   if(store_result){
@@ -196,6 +199,8 @@ See the [example config](example.conf) for more information.
 
 Code:
 ```C++
+  #include "ValuStor.hpp"
+  ...  
   
   ValuStor<long, std::string> valuestore({
         {"table", "cache.values"},
