@@ -91,6 +91,11 @@ class ValuStor
         const RVal_T data;
         const size_t size;
 
+        // ****************************************************************************************************
+        /// @name            Result
+        ///
+        /// @brief           Construct a Result object
+        ///
         Result(ErrorCode_t error_code, std::string result_message, RVal_T data, size_t size = 0):
           error_code(error_code),
           result_message(result_message),
@@ -98,6 +103,11 @@ class ValuStor
           size(size)
         {}
 
+        // ****************************************************************************************************
+        /// @name            Result
+        ///
+        /// @brief           Copy construct a Result object
+        ///
         Result(const Result &that):
           error_code(that.error_code),
           result_message(that.result_message),
@@ -105,6 +115,11 @@ class ValuStor
           size(that.size)
         {}
 
+        // ****************************************************************************************************
+        /// @name            bool()
+        ///
+        /// @brief           'true' if the result was successful, 'false' if it was not.
+        ///
         explicit operator bool() const{
           return this->error_code == SUCCESS;
         }
@@ -115,10 +130,10 @@ class ValuStor
     CassSession* session;
     const CassPrepared* prepared_insert;
     const CassPrepared* prepared_select;
+
     std::atomic<bool> is_initialized;
     std::mutex initialization_mutex;
     std::thread backlog_thread;
-    std::map<std::string, std::string> config;
     InsertMode_t default_backlog_mode;
     std::vector<CassConsistency> read_consistencies;
     std::vector<CassConsistency> write_consistencies;
@@ -126,6 +141,8 @@ class ValuStor
     std::shared_ptr<std::atomic<bool>> is_processing_backlog_ptr;
     std::mutex* backlog_mutex_ptr;
     std::deque<std::tuple<Key_T,Val_T,int32_t>>* backlog_queue_ptr;
+
+    std::map<std::string, std::string> config;
     const std::map<std::string, std::string> default_config = {
         {"table", "cache.values"},
         {"key_field", "key_field"},
@@ -620,6 +637,12 @@ class ValuStor
       this->run_backlog_thread();
     }
 
+    // ****************************************************************************************************
+    /// @name            destructor
+    ///
+    /// @brief           Close the connection, the backlog thread, and free up allocations.
+    ///
+    ///
     ~ValuStor(void)
     {
       //
@@ -756,8 +779,6 @@ class ValuStor
       *size = array_length;
       return error;
     }
-
-
 
   private:
     // ****************************************************************************************************
