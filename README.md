@@ -70,7 +70,7 @@ It's another layer of redundancy on top of an already solid database backend.
 
 Backlog use is optional and its use can be selected individually for each store request.
 
-In order to maximize performance of the store functionality by using (nearly) a lockless design,
+In order to maximize performance of the store functionality by using a (nearly) lockless design,
 a few design trade-offs were made:
 1. If the backlog receives two entries with the same key, it will not remove the older one.
    They will be applied in chronological order, however, so eventually the newer one will replace the older.
@@ -85,7 +85,9 @@ a few design trade-offs were made:
    The backlog processing will only being once the first ValuStor::store() call is successful.
 
 ## Configuration
-Configuration can use either a configuration file or setting the same configuration at runtime. See the API documentation. The only requirement is to set the following fields:
+Configuration can use either a configuration file or setting the same configuration at runtime.
+See the [API documentation](#api).
+The only requirement is to set the following fields:
 ```
   table = <database>.<table>
   key_field = <key field>
@@ -96,7 +98,7 @@ Configuration can use either a configuration file or setting the same configurat
 ```
 
 The schema of a scylla table should be setup as follows:
-```sql
+```cql
   CREATE TABLE <database>.<table> (
     <key_field> bigint PRIMARY KEY,
     <value_field> text
@@ -117,7 +119,8 @@ The following Cassandra data types (along with their C++ equivalent) are support
 * uuid (CassUuid)
 
 ## API
-ValuStor is implemented as a template class using two constructors. See the usage documentation.
+ValuStor is implemented as a template class using two constructors.
+See the [usage documentation](#usage).
 ```C++
   template<typename Key_T, typename Val_T> class ValuStor
 
@@ -136,6 +139,8 @@ Setting a value of 0 means the record will not expire.
 Setting a value of 1 is effectively a delete operation (after 1 second elapses).
 
 The optional insert modes are `ValuStor::DISALLOW_BACKLOG`, `ValuStor::ALLOW_BACKLOG`, and `ValuStor::USE_ONLY_BACKLOG`.
+If the backlog is disabled, any failures will be permanent and there will be no further retries.
+If the backlog is enabled, failures will retry automatically until they are successful or the ValuStor object is deleted.
 
 The ValuStor::Result has the following data members:
 ```C++
@@ -166,7 +171,9 @@ The ValuStor::ErrorCode_t is one of the following:
 
 Writing code to use ValuStor is very easy.
 You only need a constructor annd then call the `store()` and `retrieve()` functions in any combination.
+Connection management is automatic.
 
+Code:
 ```C++
   ValuStor<long, std::string> valuestore("example.conf");
   auto store_result = valuestore.store(1234, "value");
@@ -177,11 +184,19 @@ You only need a constructor annd then call the `store()` and `retrieve()` functi
     }
   }
 ```
+  
+Output:
+```  
+  1234 => value
+```
 
 You can use a file to load the configuration (as above) or
 specify the configuration in your code (as below).
+See the [example config](example.conf) for more information.
 
+Code:
 ```C++
+  
   ValuStor<long, std::string> valuestore({
         {"table", "cache.values"},
         {"key_field", "key_field"},
@@ -200,9 +215,10 @@ specify the configuration in your code (as below).
 ```
 
 Output:
-```
+```  
   1234 => value
 ```
+
 
 
 ## Dependencies
