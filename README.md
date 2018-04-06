@@ -32,7 +32,7 @@ It is also possible to tune this to require full quorum-level consistency that m
 nothing availability.
 
 Using a fully typed database, we can do more than just "string => string" key-value pairs.
-The project supports integers, floating-points, strings, bytes (blobs), and uuids.
+The project [supports](#configuration) integers, floating-points, strings, bytes (blobs), and uuids.
 C++ templates make it easy to integrate different combinations.
 
 There is one important caveat.
@@ -44,7 +44,7 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
 
 ## Key Features
 * Single header-only implementation makes it easy to drop into C++ projects.
-* A optional backlog queues data in the event that the database is temporarily down.
+* A optional [backlog](#backlog) queues data in the event that the database is temporarily down.
 * Adaptive fault tolerance, consistency, and availability.
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
@@ -54,7 +54,7 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
  * strings
  * binary byte arrays
  * UUID
-* Simple API: Only a single store and a single retrieve function are needed. There is no need to write database queries.
+* [Simple API](#api): Only a single store and a single retrieve function are needed. There is no need to write database queries.
 * RAM-like performance for most applications.
 * There is no need to batch read or write requests for performance.
 * There is no special client configuration required for redundancy, scalability, or multi-thread performance.
