@@ -47,6 +47,7 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
 * Single header-only implementation makes it easy to drop into C++ projects.
 * A optional [backlog](#backlog) queues data in the event that the database is temporarily down.
 * Adaptive fault tolerance, consistency, and availability.
+* SSL support, including client authentication
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
  * 32-bit unsigned integers
