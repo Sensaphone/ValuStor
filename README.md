@@ -170,7 +170,7 @@ The ValuStor::ErrorCode_t is one of the following:
 ## Usage
 
 Writing code to use ValuStor is very easy.
-You only need a constructor annd then call the `store()` and `retrieve()` functions in any combination.
+You only need a constructor and then call the `store()` and `retrieve()` functions in any combination.
 Connection management is automatic.
 
 Code:
@@ -261,6 +261,15 @@ NOTE: The multi-threaded performance of the cassandra driver is higher performin
 All write operations are performed atomically, but depending on the consistency level unexpected results may occur.
 If the order is strictly important, all reads and writes must be performed at QUORUM consistency or higher.
 There is no way to read-and-modify (including prepending/appending) data atomically.
+
+## Future
+There are a number of new features on the roadmap.
+1. Compound key support (with multiple reads)
+2. Improved support for asynchronous distributed message queue applications.
+3. Integration with [JSON for Modern C++](https://github.com/nlohmann/json) for easy document storage.
+4. File storage and access, à la [GridFS/Mongo](https://docs.mongodb.com/manual/reference/program/mongofiles/)
+5. Command line programs useful for scripting, etc.
+6. Counter type support (increment/decrement)
 
 ## License
 MIT License
