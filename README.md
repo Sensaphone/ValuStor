@@ -1,5 +1,5 @@
-## Purpose
-This project is a key-value pair database intended as an alternative to memcached.
+# ValuStor
+ValuStor is a key-value pair database solution intended as an alternative to memcached.
 It is an easy to use, single-file, header-only C++11-compatible project.
 
 Memcached has a number of out-of-the-box limitations including lack of persistent storage,
@@ -21,13 +21,13 @@ ScyllaDB, with built in redundancy, can almost always return something, even if 
 Inconsistencies can be repaired and resolved.
 
 With memcached you were limited to the amount of RAM allocated on each memcached node.
-There was no automatic way to scale ever higher as cache evictions increased cache misses.
+There was no automatic way to scale ever higher because cache evictions increased cache misses.
 ScyllaDB lets you easily scale up arbitrarily as demand increases.
 With configurable levels of redundancy, you can decide how many copies of each piece of data you want on each database
 node according to your own tolerance for failure.
 
 ScyllaDB also supports tunable consistency. This project makes use of this by seeking high levels of
-consistency, but allowing dynamically for lower levels of consistency in exchange for higher availability.
+consistency, but adaptively allowing for lower levels of consistency in exchange for higher availability.
 It is also possible to tune this to require full quorum-level consistency that mirrors memcached's all or
 nothing availability.
 
@@ -38,8 +38,9 @@ C++ templates make it easy to integrate different combinations.
 There is one important caveat.
 While memcached allows support for a fixed memory profile, the ScyllaDB data store does not. 
 Memcached keeps performance guarantees by evicting cached data, while ScyllaDB retrieves it from disk.
-The extreme performance of ScyllaDB makes this relatively painless for most applications.
-To maintain strictly absolute RAM-based access performance, enough memory is required to store the full data set.
+The extreme performance of ScyllaDB makes this negligible for many applications.
+However, to maintain strict absolute RAM-based access performance,
+[enough memory is required](http://docs.scylladb.com/faq/#do-i-ever-need-to-disable-the-scylla-cache-to-use-less-memory) to store the full data set.
 Alternatively, precision use of TTL records for automatic deletion of old cache records is supported.
 
 ## Key Features
@@ -103,7 +104,7 @@ The schema of a scylla table should be setup as follows:
     AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
 ```
 
-The following Cassandra data types are supported in the CREATE TABLE:
+The following Cassandra data types (along with their C++ equivalent) are supported in the CREATE TABLE:
 * tinyint (int8_t)
 * smallint (int16_t)
 * int (int32_t)
@@ -131,6 +132,8 @@ The public API is very simple:
 ```
 
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
+Setting a value of 0 means the record will not expire.
+Setting a value of 1 is effectively a delete operation (after 1 second elapses).
 
 The optional insert modes are `ValuStor::DISALLOW_BACKLOG`, `ValuStor::ALLOW_BACKLOG`, and `ValuStor::USE_ONLY_BACKLOG`.
 
@@ -138,8 +141,12 @@ The ValuStor::Result has the following data members:
 ```C++
   ErrorCode_t error_code
   std::string result_message
-  std::string data
+  Val_T data
+  size_t size
 ```
+Requests that fail to commit changes to the database store will return an unsuccessful error code,
+unless the backlog mode is set to `USE_ONLY_BACKLOG`.
+If the backlog mode is set to `ALLOW_BACKLOG`, then the change will eventually be committed.
 
 The ValuStor::ErrorCode_t is one of the following:
 ```C++
@@ -157,7 +164,9 @@ The ValuStor::ErrorCode_t is one of the following:
 
 ## Usage
 
-Code:
+Writing code to use ValuStor is very easy.
+You only need a constructor annd then call the `store()` and `retrieve()` functions in any combination.
+
 ```C++
   ValuStor<long, std::string> valuestore("example.conf");
   auto store_result = valuestore.store(1234, "value");
@@ -169,7 +178,8 @@ Code:
   }
 ```
 
-or
+You can use a file to load the configuration (as above) or
+specify the configuration in your code (as below).
 
 ```C++
   ValuStor<long, std::string> valuestore({
@@ -198,7 +208,7 @@ Output:
 ## Dependencies
 The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
 This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
-If using g++, it must be linked with -L/path/to/libcassandra.so/ -lcassandra. Example installation:
+Example installation:
 ```sh
   wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
   tar xvfz 2.8.1.tar.gz
@@ -209,10 +219,12 @@ If using g++, it must be linked with -L/path/to/libcassandra.so/ -lcassandra. Ex
   make
   make install
 ```
+If using g++, `cassandra.h` must be in the include path and the application must be linked with 
+`-L/path/to/libcassandra.so/ -lcassandra -lpthread`.
 
 An installation of either Cassandra or ScyllaDB is required. The latter is strongly
-recommended for this application, as the former has much worse performance. ScyllaDB is incredibly [easy
-to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
+recommended for this application due to its [advantageous design decisions](http://opensourceforu.com/2018/04/seven-design-decisions-that-apache-cassandras-successor-is-built-on/).
+ScyllaDB is incredibly [easy to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
 
 ## Thread Safety
 The cassandra driver fully supports multi-threaded access.
