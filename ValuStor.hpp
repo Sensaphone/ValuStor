@@ -908,8 +908,12 @@ class ValuStor
       std::string error_message = "Scylla Error";
 
       if(insert_mode == USE_ONLY_BACKLOG){
-        std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
-        this->backlog_queue_ptr->push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
+        {
+          std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
+          this->backlog_queue_ptr->push_back(std::tuple<Key_T,Val_T,int32_t>(key, value, seconds_ttl));
+        }
+        error_code = ValuStor::SUCCESS;
+        error_message = "Backlogged";
       } // if
       else if(this->prepared_insert == nullptr){
         error_code = ValuStor::PREPARED_INSERT_FAILED;
