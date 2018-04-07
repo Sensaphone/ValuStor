@@ -2,7 +2,7 @@
 ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a 
 number of out-of-the-box limitations including lack of persistent storage, type-inflexibility, no direct redundancy 
 or failover capabilities, poor scalability, and lack of SSL support. It can also be used for [JSON](#json) document 
-storage and distributed message queue applications. It is an easy to use, single-file, header-only C++11-compatible 
+storage and asynchronous distributed message queue applications. It is an easy to use, single-file, header-only C++11-compatible 
 project.
 
 This project wraps key-value pair operations around [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible 
@@ -131,7 +131,7 @@ The following Cassandra data types (along with their C++ equivalent) are support
 * float (float)
 * double (double)
 * boolean (bool)
-* varchar, text, and ascii (std::string)
+* varchar, text, and ascii (std::string and nlohmann::json)
 * blob (std::vector<uint8_t>)
 * uuid (CassUuid)
 
@@ -258,7 +258,7 @@ The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driv
 This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
 Example installation:
 ```sh
-# Prerequisites e.g. apt-get install build-essential cmake automake libtool libssl-dev
+# Prerequisites: e.g. apt-get install build-essential cmake automake libtool libssl-dev
 
 wget https://github.com/libuv/libuv/archive/v1.20.0.tar.gz
 tar xvfz v1.20.0.tar.gz
@@ -299,6 +299,15 @@ All write operations are performed atomically, but depending on the consistency 
 If the order is strictly important, all reads and writes must be performed at QUORUM consistency or higher.
 There is no way to read-and-modify (including prepending/appending) data atomically.
 
+## History
+This project was created at [Sensaphone](https://www.sensaphone.com) when faced with the lack of redundancy, 
+insufficient scalability, and poor performance of memcached. It led to a decision to replace it, a process that took
+only 3 days from inception to production with a flawless transition.
+
+It was developed as [free and open-source software](https://en.wikipedia.org/wiki/Free_and_open-source_software) because
+of our success with it and because of interest from other developers in the community. It is Sensaphone's first foray into
+FOSS.
+
 ## Future
 There are a number of new features on the roadmap.
 1. Compound key support (with multiple reads)
@@ -310,7 +319,7 @@ There are a number of new features on the roadmap.
 ## License
 MIT License
 
-Copyright (c) 2017-2018 Sensaphone
+Copyright (c) 2017-2018 [Sensaphone](https://www.sensaphone.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
