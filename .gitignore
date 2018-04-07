@@ -1,2 +1,5 @@
 main
 .dir-locals.el
+test/tester
+test/test_gen
+test/test.cpp

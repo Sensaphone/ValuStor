@@ -50,11 +50,10 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
 * SSL support, including client authentication
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
- * 32-bit unsigned integers
  * single- and double-precision floating point numbers
  * boolean
  * strings
- * binary byte arrays
+ * binary data (blobs)
  * UUID
 * [Simple API](#api): Only a single store and a single retrieve function are needed. There is no need to write database queries.
 * RAM-like performance for most applications.
@@ -81,9 +80,9 @@ a few design trade-offs were made:
    Store requests can be configured to only use the backlog.
    While this reduces maximum performance, it eliminates any data consistency issues.
 1. Retrievals do not check the backlog.
-1. If the client cannot connect to a server and never has, failed ValuStor::store() calls will use the backlog queue.
+1. If the client cannot connect to a server and never has, failed `store()` calls will use the backlog queue.
    Even if the server becomes accessible, the backlog thread will not begin to process automatically.
-   The backlog processing will only being once the first ValuStor::store() call is successful.
+   The backlog processing will only being once the first `store()` call is successful.
 
 ## Configuration
 Configuration can use either a configuration file or setting the same configuration at runtime.
@@ -111,12 +110,12 @@ The following Cassandra data types (along with their C++ equivalent) are support
 * tinyint (int8_t)
 * smallint (int16_t)
 * int (int32_t)
-* bigint (uint32_t and int64_t)
+* bigint (int64_t)
 * float (float)
 * double (double)
-* boolean (cass_bool_t)
+* boolean (bool)
 * varchar, text, and ascii (std::string)
-* blob (cass_byte_t*)
+* blob (std::vector<uint8_t>)
 * uuid (CassUuid)
 
 ## API
@@ -125,8 +124,8 @@ See the [usage documentation](#usage).
 ```C++
   template<typename Key_T, typename Val_T> class ValuStor
 
-  ValuStor(std::string config_file)
-  ValuStor(std::map<std::string, std::string> configuration_kvp)
+  ValuStor::ValuStor(std::string config_file)
+  ValuStor::ValuStor(std::map<std::string, std::string> configuration_kvp)
 ```
 
 The public API is very simple:
@@ -179,7 +178,7 @@ Code:
   #include "ValuStor.hpp"
   ...  
 
-  ValuStor<long, std::string> valuestore("example.conf");
+  ValuStor::ValuStor<int64_t, std::string> valuestore("example.conf");
   auto store_result = valuestore.store(1234, "value");
   if(store_result){
     auto retrieve_result = valuestore.retrieve(1234);
@@ -203,7 +202,7 @@ Code:
   #include "ValuStor.hpp"
   ...  
   
-  ValuStor<long, std::string> valuestore({
+  ValuStor::ValuStor<int64_t, std::string> valuestore({
         {"table", "cache.values"},
         {"key_field", "key_field"},
         {"value_field", "value_field"},
@@ -232,14 +231,24 @@ The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driv
 This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
 Example installation:
 ```sh
-  wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
-  tar xvfz 2.8.1.tar.gz
-  cd cpp-driver-2.8.1
-  mkdir build
-  cd build
-  cmake ..
-  make
-  make install
+# Prerequisites e.g. apt-get install build-essential cmake automake libtool libssl-dev
+
+wget https://github.com/libuv/libuv/archive/v1.20.0.tar.gz
+tar xvfz v1.20.0.tar.gz
+cd libuv-1.20.0/
+./autogen.sh
+./configure
+make
+make install
+
+wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
+tar xvfz 2.8.1.tar.gz
+cd cpp-driver-2.8.1
+mkdir build
+cd build
+cmake ..
+make
+make install
 ```
 If using g++, `cassandra.h` must be in the include path and the application must be linked with 
 `-L/path/to/libcassandra.so/ -lcassandra -lpthread`.
