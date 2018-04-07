@@ -1,53 +1,43 @@
 # ValuStor
-ValuStor is a key-value pair database solution originally designed as an alternative to memcached.
-It can also be used for [JSON](#json) document storage and distributed message queue applications.
-It is an easy to use, single-file, header-only C++11-compatible project.
+ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a 
+number of out-of-the-box limitations including lack of persistent storage, type-inflexibility, no direct redundancy 
+or failover capabilities, poor scalability, and lack of SSL support. It can also be used for [JSON](#json) document 
+storage and distributed message queue applications. It is an easy to use, single-file, header-only C++11-compatible 
+project.
 
-Memcached has a number of out-of-the-box limitations including lack of persistent storage,
-type-inflexibility, no direct redundancy or failover capabilities, and poor scalability. 
-This project resolves these issues by wrapping key-value pair operations around 
-[ScyllaDB](https://www.scylladb.com), a Cassandra-compatible database written in C++.
+This project wraps key-value pair operations around [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible 
+database written in C++. It is a disk-backed data store with an in-RAM cache. In many cases, the entire data set 
+can be stored in the database cache, resulting in 100% cache hits. If the data can only be found on disk, ScyllaDB 
+is still one of the highest performing, lowest latency, disk-based databases anywhere.
 
-ScyllaDB is a disk-backed data store with an in-RAM cache.
-As such, it performs extremely well for this application.
-In many cases, the entire data set can be stored in the database cache, resulting in 100% cache hits.
-Under the rare circumstances where data is not in the ScyllaDB cache, the database itself is one of the highest 
-performing disk-based databases that exists anywhere.
-A single properly spec'ed server can serve as many as a million transactions per second even if it has to hit the disk.
+ScyllaDB is a NoSQL eventually-consistent database, which is advantageous for many cache applications. Memcached 
+makes no guarantees that a key will return a value that was previously stored. When a memcached node goes down that 
+data is lost. A ScyllaDB cluster, with built in redundancy, can almost always return something. This project makes 
+use of [tunable consistency](#consistencies) by seeking high levels of consistency, but adaptively allowing for 
+lower levels of consistency in exchange for higher availability. Full quorum-level consistency can be used to 
+mirror other databases' all or nothing availability.
 
-ScyllaDB is a NoSQL eventually-consistent database, which is fine for many cache applications.
-Memcached makes no guarantees that a key will return a value that was previously stored.
-When a memcached node goes down that data is lost.
-ScyllaDB, with built in redundancy, can almost always return something, even if it is an older version.
-Inconsistencies can be repaired and resolved.
+With memcached you were limited to the amount of RAM allocated on each memcached node. There was no automatic way 
+to scale ever higher because cache evictions increased cache misses. ScyllaDB lets you easily scale up arbitrarily 
+as demand increases. With configurable levels of redundancy, you can decide how many copies of each piece of data 
+you want on each database node according to your own tolerance for failure.
 
-With memcached you were limited to the amount of RAM allocated on each memcached node.
-There was no automatic way to scale ever higher because cache evictions increased cache misses.
-ScyllaDB lets you easily scale up arbitrarily as demand increases.
-With configurable levels of redundancy, you can decide how many copies of each piece of data you want on each database
-node according to your own tolerance for failure.
+By using a fully typed database, we can do more than just "string => string" key-value pairs. The project 
+[supports](#configuration) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
+it easy to integrate different combinations.
 
-ScyllaDB also supports tunable consistency. This project makes use of this by seeking high levels of
-consistency, but adaptively allowing for lower levels of consistency in exchange for higher availability.
-It is also possible to tune this to require full quorum-level consistency that mirrors memcached's all or
-nothing availability.
-
-Using a fully typed database, we can do more than just "string => string" key-value pairs.
-The project [supports](#configuration) integers, floating-points, strings, bytes (blobs), and uuids.
-C++ templates make it easy to integrate different combinations.
-
-There is one important caveat.
-While memcached allows support for a fixed memory profile, the ScyllaDB data store does not. 
-Memcached keeps performance guarantees by evicting cached data, while ScyllaDB retrieves it from disk.
-The extreme performance of ScyllaDB makes this negligible for many applications.
-However, to maintain strict absolute RAM-based access performance,
-[enough memory is required](http://docs.scylladb.com/faq/#do-i-ever-need-to-disable-the-scylla-cache-to-use-less-memory) to store the full data set.
-Alternatively, precision use of TTL records for automatic deletion of old cache records is supported.
+There is one important caveat. While memcached allows support for a fixed memory profile, the ScyllaDB data store 
+does not. Memcached keeps performance guarantees by evicting cached data, while ScyllaDB retrieves it from disk. 
+The extreme performance of ScyllaDB makes this negligible for many applications. However, to maintain strict 
+absolute RAM-based access performance, [enough memory is 
+required](http://docs.scylladb.com/faq/#do-i-ever-need-to-disable-the-scylla-cache-to-use-less-memory) to store the 
+full data set. Alternatively, precision use of TTL records for automatic deletion of old cache records is 
+supported.
 
 ## Key Features
 * Single header-only implementation makes it easy to drop into C++ projects.
 * A optional [backlog](#backlog) queues data in the event that the database is temporarily down.
-* Adaptive fault tolerance, consistency, and availability.
+* [Adaptive](#consistencies) fault tolerance, consistency, and availability.
 * SSL support, including client authentication
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
@@ -86,6 +76,32 @@ a few design trade-offs were made:
    Even if the server becomes accessible, the backlog thread will not begin to process automatically.
    The backlog processing will only being once the first `store()` call is successful.
 
+## Consistencies
+In many traditional synchronized database clusters any writes are guaranteed to be available by a quorum of nodes 
+for any subsequent reads. However, if the number of available database nodes falls below quorum, no read or write 
+operations can take place because they would not be consistent. It also makes managing multi-datacenter and 
+multi-rack installations very brittle. For high-availability applications, this is unacceptable.
+
+Because ScyllaDB is eventually-consistent, it does not suffer from any of these limitations. Consistency levels can 
+be chosen dynamically by the client for both `store()` and `retrieve()` operations. An `ALL` or `QUORUM` level of 
+consistency can be chosen to ensure the maximum level of consistency. The real power of tunable consistency comes in two
+scenarios:
+1. Operation below quorum
+2. Performance
+
+When the database is running below quorum, the read and write requests will fail. ValuStor can automatically lower 
+the required level of consistency and try again. Eventually, as long as at least one redundant database node is up 
+somewhere, the request will succeed. For many types of high-availability applications this is essential.
+
+If absolute performance is required, both reads and writes can always operate below quorum-level consistency.
+This increases the risk that a write won't be applied by the time a read occurs, but it will eventually become available.
+
+The default consistencies used by ValuStor are `LOCAL_QUORUM, LOCAL_ONE, ONE` for `retrieve()` operations and 
+`LOCAL_ONE, ONE, ANY` for `store()` operations. Requiring quorum on reads makes quorum on writes mostly 
+unnecessary. `LOCAL_QUORUM` or `QUORUM` can be added to writes at the expense of client write performance. Add 
+`QUORUM` to allow remote datacenters to be checked in the order given. The number of retry attempts at each 
+consistency level can also be controlled using this approach (i.e. `QUORUM, QUORUM, ONE, ONE`).
+
 ## Configuration
 Configuration can use either a configuration file or setting the same configuration at runtime.
 See the [API documentation](#api).
@@ -107,7 +123,6 @@ The schema of a scylla table should be setup as follows:
   ) WITH compaction = {'class': 'SizeTieredCompactionStrategy'}
     AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
 ```
-
 The following Cassandra data types (along with their C++ equivalent) are supported in the CREATE TABLE:
 * tinyint (int8_t)
 * smallint (int16_t)
