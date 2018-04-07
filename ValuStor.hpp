@@ -731,6 +731,12 @@ class ValuStor
     static CassError bind(CassStatement* stmt, size_t index, const std::vector<uint8_t>& value) {
       return cass_statement_bind_bytes(stmt, index, value.data(), value.size());
     }
+    #if defined(NLOHMANN_JSON_HPP)
+    static CassError bind(CassStatement* stmt, size_t index, const nlohmann::json& value){
+      std::string json_as_str = value.dump();
+      return cass_statement_bind_string_n(stmt, index, json_as_str.c_str(), json_as_str.size());
+    }
+    #endif
 
     static CassError get(const CassValue* value, int8_t* target, size_t* size){
       *size = 1;
@@ -799,6 +805,14 @@ class ValuStor
       *target = std::vector<uint8_t>(cass_bytes, cass_bytes + array_length);
       return error;
     }
+    #if defined(NLOHMANN_JSON_HPP)
+    static CassError get(const CassValue* value, nlohmann::json* target, size_t* size){
+      std::string json_as_str;
+      auto result = get(value, &json_as_str, size);
+      *target = nlohmann::json::parse(json_as_str);
+      return result;
+    }
+    #endif
 
   private:
     // ****************************************************************************************************

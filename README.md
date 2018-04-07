@@ -1,5 +1,6 @@
 # ValuStor
-ValuStor is a key-value pair database solution intended as an alternative to memcached.
+ValuStor is a key-value pair database solution originally designed as an alternative to memcached.
+It can also be used for [JSON](#json) document storage and distributed message queue applications.
 It is an easy to use, single-file, header-only C++11-compatible project.
 
 Memcached has a number of out-of-the-box limitations including lack of persistent storage,
@@ -55,6 +56,7 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
  * strings
  * binary data (blobs)
  * UUID
+ * [JSON](#json)
 * [Simple API](#api): Only a single `store()` and a single `retrieve()` function are needed. There is no need to write database queries.
 * RAM-like performance for most applications.
 * There is no need to batch read or write requests for performance.
@@ -224,7 +226,17 @@ Output:
   1234 => value
 ```
 
-
+## JSON
+This package integrates with [JSON for Modern C++](https://github.com/nlohmann/json) for easy document storage.
+The values will be serialized and deserialized automatically.
+The serialization uses strings and thus requires a cassandra `text` or `varchar` field.
+To use it, include the json header before the ValuStor header:
+```C++
+#include "nlohmann/json.hpp"
+#include "ValuStor.hpp"
+...
+ValuStor::ValuStor<int64_t, nlohmann::json> valuestore("example.conf");
+```
 
 ## Dependencies
 The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
@@ -276,10 +288,9 @@ There is no way to read-and-modify (including prepending/appending) data atomica
 There are a number of new features on the roadmap.
 1. Compound key support (with multiple reads)
 2. Improved support for asynchronous distributed message queue applications.
-3. Integration with [JSON for Modern C++](https://github.com/nlohmann/json) for easy document storage.
-4. File storage and access, à la [GridFS/Mongo](https://docs.mongodb.com/manual/reference/program/mongofiles/)
-5. Command line programs useful for scripting, etc.
-6. Counter type support (increment/decrement)
+3. File storage and access, à la [GridFS/Mongo](https://docs.mongodb.com/manual/reference/program/mongofiles/)
+4. Command line programs useful for scripting, etc.
+5. Counter type support (increment/decrement)
 
 ## License
 MIT License
