@@ -55,31 +55,31 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
  * strings
  * binary data (blobs)
  * UUID
-* [Simple API](#api): Only a single store and a single retrieve function are needed. There is no need to write database queries.
+* [Simple API](#api): Only a single `store()` and a single `retrieve()` function are needed. There is no need to write database queries.
 * RAM-like performance for most applications.
 * There is no need to batch read or write requests for performance.
 * There is no special client configuration required for redundancy, scalability, or multi-thread performance.
 
 ## Backlog
 This project incorporates a backlog to queue changes locally for times when the remote server is unavailable.
-If a store request fails for any reason, it can be cached in the backlog to be committed later.
+If a `store()` request fails for any reason, it can be cached in the backlog to be committed later.
 In memcached this data would be lost or require the application to wait until the server returned.
 This is well-suited to asynchronous producer/consumer applications where the producer doesn't want to wait around
 for the server to become available and it is okay if the consumer gets the data eventually.
 It's another layer of redundancy on top of an already solid database backend.
 
-Backlog use is optional and its use can be selected individually for each store request.
+Backlog use is optional and its use can be selected individually for each `store()` request.
 
 In order to maximize performance of the store functionality by using a (nearly) lockless design,
 a few design trade-offs were made:
 1. If the backlog receives two entries with the same key, it will not remove the older one.
    They will be applied in chronological order, however, so eventually the newer one will replace the older.
-1. Older backlog entries may be processed after newer successful non-backlogged store requests.
+1. Older backlog entries may be processed after newer successful non-backlogged `store()` requests.
    The default backlog mode should not be used if losing backlogged data is more acceptable than the chance of 
    having overwritten newer data.
-   Store requests can be configured to only use the backlog.
+   You can configure `store()` requests to only use the backlog.
    While this reduces maximum performance, it eliminates any data consistency issues.
-1. Retrievals do not check the backlog.
+1. `retrieve()` does not check the backlog.
 1. If the client cannot connect to a server and never has, failed `store()` calls will use the backlog queue.
    Even if the server becomes accessible, the backlog thread will not begin to process automatically.
    The backlog processing will only being once the first `store()` call is successful.
@@ -178,10 +178,10 @@ Code:
   #include "ValuStor.hpp"
   ...  
 
-  ValuStor::ValuStor<int64_t, std::string> valuestore("example.conf");
-  auto store_result = valuestore.store(1234, "value");
+  ValuStor::ValuStor<int64_t, std::string> store("example.conf");
+  auto store_result = store.store(1234, "value");
   if(store_result){
-    auto retrieve_result = valuestore.retrieve(1234);
+    auto retrieve_result = store.retrieve(1234);
     if(retrieve_result){
       std::cout << 1234 << " => " << result.data << std::endl;
     }
@@ -202,7 +202,7 @@ Code:
   #include "ValuStor.hpp"
   ...  
   
-  ValuStor::ValuStor<int64_t, std::string> valuestore({
+  ValuStor::ValuStor<int64_t, std::string> store({
         {"table", "cache.values"},
         {"key_field", "key_field"},
         {"value_field", "value_field"},
@@ -210,9 +210,9 @@ Code:
         {"password", "password"},
         {"ip_addresses", "127.0.0.1"}
   });
-  auto store_result = valuestore.store(1234, "value");
+  auto store_result = store.store(1234, "value");
   if(store_result){
-    auto retrieve_result = valuestore.retrieve(1234);
+    auto retrieve_result = store.retrieve(1234);
     if(retrieve_result){
       std::cout << 1234 << " => " << result.data << std::endl;
     }
@@ -261,7 +261,7 @@ ScyllaDB is incredibly [easy to setup](http://docs.scylladb.com/getting-started/
 The cassandra driver fully supports multi-threaded access.
 This project is completely thread safe.
 It is lockless, except for using the backlog. Locks are only held if needed and for as short a time as possible.
-Multi-threaded stores are generally higher performing than single-threaded stores if it can use multiple CPU cores.
+Higher performance can be achieved by utilizing multiple threads and cores to make concurrent `store()` calls.
 
 NOTE: The multi-threaded performance of the cassandra driver is higher performing than the backlog thread.
       The backlog should only be used to increase data availability, not to increase performance.
