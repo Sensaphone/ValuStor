@@ -36,7 +36,7 @@ supported.
 
 ## Key Features
 * Single header-only implementation makes it easy to drop into C++ projects.
-* A optional [backlog](#backlog) queues data in the event that the database is temporarily down.
+* A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
 * [Adaptive](#consistencies) fault tolerance, consistency, and availability.
 * SSL support, including client authentication
 * Supports a variety of native C++ data types in the keys and values.
@@ -283,7 +283,13 @@ If using g++, `cassandra.h` must be in the include path and the application must
 An installation of either Cassandra or ScyllaDB is required. The latter is strongly
 recommended for this application due to its [advantageous design decisions](http://opensourceforu.com/2018/04/seven-design-decisions-that-apache-cassandras-successor-is-built-on/).
 ScyllaDB is incredibly [easy to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
+```sh
+# Prerequisite: Install ScyllaDB
 
+vi /etc/scylla/scylla.yaml
+scylla_io_setup
+service scylla-server start
+```
 ## Thread Safety
 The cassandra driver fully supports multi-threaded access.
 This project is completely thread safe.
@@ -299,22 +305,20 @@ All write operations are performed atomically, but depending on the consistency 
 If the order is strictly important, all reads and writes must be performed at QUORUM consistency or higher.
 There is no way to read-and-modify (including prepending/appending) data atomically.
 
-## History
-This project was created at [Sensaphone](https://www.sensaphone.com) when faced with the lack of redundancy, 
-insufficient scalability, and poor performance of memcached. It led to a decision to replace it, a process that took
-only 3 days from inception to production with a flawless transition.
-
-It was developed as [free and open-source software](https://en.wikipedia.org/wiki/Free_and_open-source_software) because
-of our success with it and because of interest from other developers in the community. It is Sensaphone's first foray into
-FOSS.
-
 ## Future
 There are a number of new features on the roadmap.
 1. Compound key support (with multiple reads)
 2. Improved support for asynchronous distributed message queue applications.
-3. File storage and access, à la [GridFS/Mongo](https://docs.mongodb.com/manual/reference/program/mongofiles/)
+3. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
 4. Command line programs useful for scripting, etc.
 5. Counter type support (increment/decrement)
+
+## History
+This project was created at [Sensaphone](https://www.sensaphone.com) to solve memcached's lack of redundancy, 
+insufficient scalability, and poor performance. After the decision was made to replace it,
+it only took 3 days from inception to production. The transition was flawless. Due to our success with it
+and subsequent interest from other developers in the community, it was developed as
+[free and open-source software](https://en.wikipedia.org/wiki/Free_and_open-source_software).
 
 ## License
 MIT License
