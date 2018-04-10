@@ -108,7 +108,7 @@ EOF
 vi scylla-client1.cfg
 
 # Create the server certificate. Protect the key with a password.
-openssl genrsa -out scylla-client1.key 4096 -aes256
+openssl genrsa -aes256 -out scylla-client1.key 4096
 openssl req -new -key scylla-client1.key -out scylla-client1.csr -config scylla-client1.cfg
 openssl x509 -req -in scylla-client1.csr -CA ca-scylla.pem -CAkey ca-scylla.key -CAcreateserial -out scylla-client1.crt -days 3650
 ```
