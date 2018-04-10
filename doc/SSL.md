@@ -1,5 +1,12 @@
 This guide explains how to [generate self-signed
 certificates](http://docs.scylladb.com/operating-scylla/generate_certificate/) for use with ValuStor.
+It uses a separate certificate for every client and server.
+If this is not desired, replace "server1", "server2", etc. with "server".
+Do the same for "client1", etc.
+Client certificates are also password protected.
+This can be disabled by removing "-aes256" from the key generation command.
+Lastly, this guide uses domain names. You can replace domain names with IP addresses.
+If you do, be sure to use `server_verify_mode = 2` in the configuration.
 
 The first step is to create a certificate authority (CA).
 ```
@@ -34,7 +41,7 @@ vi ca-scylla-certificate.cfg
 
 # Create the certificate authority (CA)
 openssl genrsa -out ca-scylla.key 4096
-openssl req -x509 -new -nodes -key ca-scylla.key -days 3650 -config ca-scylla-certificate.cfg -out ca-scylla.pem
+openssl req -x509 -new -nodes -key ca-scylla.key -days 36500 -config ca-scylla-certificate.cfg -out ca-scylla.pem
 ```
 
 The next step is to generate server certificates. Repeat this process once for every ScyllaDB server node
