@@ -1,7 +1,7 @@
 # ValuStor
 ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a 
 number of out-of-the-box limitations including lack of persistent storage, type-inflexibility, no direct redundancy 
-or failover capabilities, poor scalability, and lack of SSL support. It can also be used for [JSON](#json) document 
+or failover capabilities, poor scalability, and lack of TLS support. It can also be used for [JSON](#json) document 
 storage and asynchronous distributed message queue applications. It is an easy to use, single-file, header-only C++11-compatible 
 project.
 
@@ -38,7 +38,7 @@ supported.
 * Single header-only implementation makes it easy to drop into C++ projects.
 * A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
 * [Adaptive](#consistencies) fault tolerance, consistency, and availability.
-* [SSL support](#ssl), including client authentication
+* [TLS support](#tls), including client authentication
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
  * single- and double-precision floating point numbers
@@ -142,8 +142,8 @@ scylla_io_setup
 service scylla-server start
 ```
 
-### SSL
-Using SSL for encryption and authentication is highly recommended. It is not difficult to setup. See the [instructions](doc/SSL.md)
+### TLS
+Using TLS for encryption and authentication is highly recommended. It is not difficult to setup. See the [instructions](doc/TLS.md)
 
 ### Database Setup
 Configuration can use either a configuration file or setting the same configuration at runtime.
