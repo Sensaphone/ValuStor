@@ -160,7 +160,12 @@ class ValuStor
         {"client_max_conc_connect_creation", "1"},
         {"client_max_concurrent_requests", "100"},
         {"client_log_level", "2"},
-        {"default_backlog_mode", "1"}
+        {"default_backlog_mode", "1"},
+        {"server_trusted_cert", ""},
+        {"server_verify_mode", "0"},
+        {"client_ssl_cert", ""},
+        {"client_ssl_key", ""},
+        {"client_key_password", ""}
       };
 
   private:
@@ -282,14 +287,18 @@ class ValuStor
       //
       // Setup SSL (https://docs.datastax.com/en/developer/cpp-driver/2.0/topics/security/ssl/)
       //
-      if(config.count("server_trusted_cert") or
-         (config.count("client_ssl_cert") and config.count("client_ssl_key"))){
+      std::string server_trusted_cert = config.count("server_trusted_cert") ? config.at("server_trusted_cert") : "";
+      std::string client_ssl_cert = config.count("client_ssl_cert") ? config.at("client_ssl_cert") : "";
+      std::string client_ssl_key = config.count("client_ssl_key") ? config.at("client_ssl_key") : "";
+
+      if(server_trusted_cert != "" or
+         (client_ssl_cert != "" and client_ssl_key != "")){
         CassSsl* ssl = cass_ssl_new();
 
         //
         // Server Certificate
         //
-        if(config.count("server_trusted_cert")){
+        if(server_trusted_cert != ""){
           auto load_trusted_cert_file = [](const char* file, CassSsl* ssl) -> CassError{
             std::ifstream input_file_stream(file);
             std::stringstream string_buffer;
@@ -297,7 +306,15 @@ class ValuStor
             std::string certificate = string_buffer.str();
             return cass_ssl_add_trusted_cert(ssl, certificate.c_str());
           };
-          load_trusted_cert_file("path/server.pem", ssl); // May be repeated more than once for each file.
+          std::stringstream ss(server_trusted_cert);
+          std::string cert;
+          while(std::getline(ss, cert, ','))
+          {
+            cert = trim(cert);
+            if(cert != ""){
+              load_trusted_cert_file(cert.c_str(), ssl);
+            } // if
+          }
 
           int verify_mode = str_to_int(config.at("server_verify_mode"), 1);
           cass_ssl_set_verify_flags(ssl, verify_mode == 0 ? CASS_SSL_VERIFY_NONE :
@@ -309,7 +326,7 @@ class ValuStor
         //
         // Client Certificate (Authentication)
         //
-        if(config.count("client_ssl_cert") and config.count("client_ssl_key")){
+        if(client_ssl_cert != "" and client_ssl_key != ""){
           auto load_ssl_cert = [](const char* file, CassSsl* ssl) -> CassError{
             std::ifstream input_file_stream(file);
             std::stringstream string_buffer;
@@ -317,7 +334,7 @@ class ValuStor
             std::string certificate = string_buffer.str();
             return cass_ssl_set_cert(ssl, certificate.c_str());
           };
-          load_ssl_cert(config.at("client_ssl_cert").c_str(), ssl);
+          load_ssl_cert(client_ssl_cert.c_str(), ssl);
           auto load_private_key = [](const char* file, CassSsl* ssl, const char* key_password) -> CassError{
             std::ifstream input_file_stream(file);
             std::stringstream string_buffer;
@@ -325,8 +342,9 @@ class ValuStor
             std::string certificate = string_buffer.str();
             return cass_ssl_set_private_key(ssl, certificate.c_str(), key_password);
           };
-          load_private_key(config.at("client_ssl_key").c_str(), ssl,
-              config.count("client_key_password") ? config.at("client_key_password").c_str() : nullptr);
+          load_private_key(client_ssl_key.c_str(), ssl,
+              config.count("client_key_password") and config.at("client_key_password") != "" ?
+                        config.at("client_key_password").c_str() : nullptr);
         } // if
 
         cass_cluster_set_ssl(this->cluster, ssl);

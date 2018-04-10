@@ -73,12 +73,12 @@ int main(void){
   x = 1;
   for(std::string key : key_types){
     key = key == "tinyint" ? "int8_t" :
-	  key == "smallint" ? "int16_t" :
-	  key == "int" ? "int32_t" :
+          key == "smallint" ? "int16_t" :
+          key == "int" ? "int32_t" :
           key == "bigint" ? "int64_t" :
           key == "float" ? "float" :
           key == "double" ? "double" :
-	  key == "boolean" ? "bool" :
+	        key == "boolean" ? "bool" :
           key == "varchar" ? "std::string" :
           key == "text" ? "std::string" :
           key == "ascii" ? "std::string" :
@@ -86,12 +86,12 @@ int main(void){
                           "";
     for(std::string val : value_types){
       val = val == "tinyint" ? "int8_t" :
-	    val == "smallint" ? "int16_t" :
-	    val == "int" ? "int32_t" :
+            val == "smallint" ? "int16_t" :
+            val == "int" ? "int32_t" :
             val == "bigint" ? "int64_t" :
             val == "float" ? "float" :
             val == "double" ? "double" :
-   	    val == "boolean" ? "bool" :
+            val == "boolean" ? "bool" :
             val == "varchar" ? "std::string" :
             val == "text" ? "std::string" :
             val == "ascii" ? "std::string" :
@@ -100,12 +100,13 @@ int main(void){
 
       cout << "{" << endl
            << "  ValuStor::ValuStor<" << key << ", " << val << "> store({"
-	   << "{\"table\", \"cache.tbl" << std::to_string(x++) << "\"},"
-	   << "{\"key_field\", \"k\"},"
-	   << "{\"value_field\", \"v\"},"
+           << "{\"table\", \"cache.tbl" << std::to_string(x++) << "\"},"
+           << "{\"key_field\", \"k\"},"
+           << "{\"value_field\", \"v\"},"
            << "{\"username\", \"\"},"
            << "{\"password\", \"\"},"
-           << "{\"ip_addresses\", \"127.0.0.1\"}"
+           << "{\"ip_addresses\", \"127.0.0.1\"},"
+           << "{\"server_trusted_cert\", \"/etc/scylla/keys/scylla.crt\"}"
            << "});";
 
       int ndx = 0;
@@ -116,12 +117,12 @@ int main(void){
              << "  {auto result = store.store(" << k << ", " << v << ", 0);"
              << " if(result){ auto result2 = store.retrieve(" << k << "); "
              << "if(not result2){ std::cout << \"READ ERROR\" << std::endl; }"
-	     << "} else { std::cout << \"WRITE ERROR: "
+             << "} else { std::cout << \"WRITE ERROR: "
              << "tbl" << std::to_string(x-1) << " (" << key << ") => " << "(" << val << ")\" << std::endl; }}";
       } // for
 
-      cout << endl << "}"
-	   << endl;
+      cout << endl << "}" 
+           << endl;
     } // for
   } // for
   cout << "}" << endl;

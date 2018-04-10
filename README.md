@@ -23,7 +23,7 @@ as demand increases. With configurable levels of redundancy, you can decide how 
 you want on each database node according to your own tolerance for failure.
 
 By using a fully typed database, we can do more than just "string => string" key-value pairs. The project 
-[supports](#configuration) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
+[supports](#database setup) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
 it easy to integrate different combinations.
 
 There is one important caveat. While memcached allows support for a fixed memory profile, the ScyllaDB data store 
@@ -38,7 +38,7 @@ supported.
 * Single header-only implementation makes it easy to drop into C++ projects.
 * A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
 * [Adaptive](#consistencies) fault tolerance, consistency, and availability.
-* SSL support, including client authentication
+* [SSL support](#ssl), including client authentication
 * Supports a variety of native C++ data types in the keys and values.
  * 8-, 16-, 32-, and 64-bit signed integers
  * single- and double-precision floating point numbers
@@ -103,6 +103,49 @@ unnecessary. `LOCAL_QUORUM` or `QUORUM` can be added to writes at the expense of
 consistency level can also be controlled using this approach (i.e. `QUORUM, QUORUM, ONE, ONE`).
 
 ## Configuration
+
+### Dependencies
+The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
+This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
+Example installation:
+```sh
+# Prerequisites: e.g. apt-get install build-essential cmake automake libtool libssl-dev
+
+wget https://github.com/libuv/libuv/archive/v1.20.0.tar.gz
+tar xvfz v1.20.0.tar.gz
+cd libuv-1.20.0/
+./autogen.sh
+./configure
+make
+make install
+
+wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
+tar xvfz 2.8.1.tar.gz
+cd cpp-driver-2.8.1
+mkdir build
+cd build
+cmake ..
+make
+make install
+```
+If using g++, `cassandra.h` must be in the include path and the application must be linked with 
+`-L/path/to/libcassandra.so/ -lcassandra -lpthread`.
+
+An installation of either Cassandra or ScyllaDB is required. The latter is strongly
+recommended for this application due to its [advantageous design decisions](http://opensourceforu.com/2018/04/seven-design-decisions-that-apache-cassandras-successor-is-built-on/).
+ScyllaDB is incredibly [easy to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
+```sh
+# Prerequisite: Install ScyllaDB
+
+vi /etc/scylla/scylla.yaml
+scylla_io_setup
+service scylla-server start
+```
+
+### SSL
+Using SSL for encryption and authentication is highly recommended. It is not difficult to setup. See the [instructions](doc/SSL.md)
+
+### Database Setup
 Configuration can use either a configuration file or setting the same configuration at runtime.
 See the [API documentation](#api).
 The only requirement is to set the following fields:
@@ -253,43 +296,6 @@ To use it, include the json header before the ValuStor header:
 ValuStor::ValuStor<int64_t, nlohmann::json> valuestore("example.conf");
 ```
 
-## Dependencies
-The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
-This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
-Example installation:
-```sh
-# Prerequisites: e.g. apt-get install build-essential cmake automake libtool libssl-dev
-
-wget https://github.com/libuv/libuv/archive/v1.20.0.tar.gz
-tar xvfz v1.20.0.tar.gz
-cd libuv-1.20.0/
-./autogen.sh
-./configure
-make
-make install
-
-wget https://github.com/datastax/cpp-driver/archive/2.8.1.tar.gz
-tar xvfz 2.8.1.tar.gz
-cd cpp-driver-2.8.1
-mkdir build
-cd build
-cmake ..
-make
-make install
-```
-If using g++, `cassandra.h` must be in the include path and the application must be linked with 
-`-L/path/to/libcassandra.so/ -lcassandra -lpthread`.
-
-An installation of either Cassandra or ScyllaDB is required. The latter is strongly
-recommended for this application due to its [advantageous design decisions](http://opensourceforu.com/2018/04/seven-design-decisions-that-apache-cassandras-successor-is-built-on/).
-ScyllaDB is incredibly [easy to setup](http://docs.scylladb.com/getting-started/). This project has been tested with ScyllaDB v.2.x.
-```sh
-# Prerequisite: Install ScyllaDB
-
-vi /etc/scylla/scylla.yaml
-scylla_io_setup
-service scylla-server start
-```
 ## Thread Safety
 The cassandra driver fully supports multi-threaded access.
 This project is completely thread safe.
