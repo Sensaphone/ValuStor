@@ -150,7 +150,7 @@ class ValuStor
         {"value_field", "value_field"},
         {"username", "username"},
         {"password", "password"},
-        {"ip_addresses", "127.0.0.1"},
+        {"hosts", "127.0.0.1"},
         {"read_consistencies", "LOCAL_QUORUM, LOCAL_ONE, ONE"},
         {"write_consistencies", "LOCAL_ONE, ONE, ANY"},
         {"client_io_threads", "2"},
@@ -276,7 +276,7 @@ class ValuStor
       if(username != "" or password != ""){
         cass_cluster_set_credentials(this->cluster, username.c_str(), password.c_str());
       } // if
-      cass_cluster_set_contact_points(this->cluster, config.at("ip_addresses").c_str());
+      cass_cluster_set_contact_points(this->cluster, config.at("hosts").c_str());
       cass_cluster_set_num_threads_io(this->cluster, str_to_int(config.at("client_io_threads"), 2));
       cass_cluster_set_queue_size_io(this->cluster, str_to_int(config.at("client_queue_size"), 8192));
       cass_cluster_set_core_connections_per_host(this->cluster, str_to_int(config.at("client_server_connects_per_thread"), 1));

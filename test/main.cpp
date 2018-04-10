@@ -16,7 +16,7 @@ int main(void){
     {"value_field", "v"},
     {"username", ""},
     {"password", ""},
-    {"ip_addresses", "sensadb1.sensaphone.net"},
+    {"hosts", "sensadb1.sensaphone.net"},
     {"server_trusted_cert", "/etc/scylla/keys/scylla.crt, /etc/scylla/keys/client.crt"},
     {"server_verify_mode", "3"},
     {"client_log_level", "5"},

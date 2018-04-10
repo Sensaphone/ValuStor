@@ -105,7 +105,7 @@ int main(void){
            << "{\"value_field\", \"v\"},"
            << "{\"username\", \"\"},"
            << "{\"password\", \"\"},"
-           << "{\"ip_addresses\", \"127.0.0.1\"},"
+           << "{\"hosts\", \"127.0.0.1\"},"
            << "{\"server_trusted_cert\", \"/etc/scylla/keys/scylla.crt\"}"
            << "});";
 

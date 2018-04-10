@@ -155,7 +155,7 @@ The only requirement is to set the following fields:
   value_field = <value field>
   username = <username>
   password = <password>
-  ip_addresses = <ip_address_1>,<ip_address_2>,<ip_address_3>
+  hosts = <ip_address_1>,<ip_address_2>,<ip_address_3>
 ```
 
 The schema of a scylla table should be setup as follows:
@@ -268,7 +268,7 @@ Code:
         {"value_field", "value_field"},
         {"username", "username"},
         {"password", "password"},
-        {"ip_addresses", "127.0.0.1"}
+        {"hosts", "127.0.0.1"}
   });
   auto store_result = store.store(1234, "value");
   if(store_result){
