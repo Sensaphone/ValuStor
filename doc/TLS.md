@@ -41,7 +41,7 @@ vi ca-scylla.cfg
 
 # Create the certificate authority (CA)
 openssl genrsa -aes256 -out ca-scylla.key 4096
-openssl req -x509 -new -nodes -key ca-scylla.key -days 36500 -config ca-scylla-certificate.cfg -out ca-scylla.pem
+openssl req -x509 -new -nodes -key ca-scylla.key -days 36500 -config ca-scylla.cfg -out ca-scylla.pem
 ```
 
 The next step is to generate server certificates. Repeat this process once for every ScyllaDB server node
