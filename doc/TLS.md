@@ -10,7 +10,7 @@ If you do, be sure to use `server_verify_mode = 2` in the configuration.
 
 The first step is to create a certificate authority (CA).
 ```
-cat << EOF > ca-certificate.cfg
+cat << EOF > ca-scylla.cfg
 RANDFILE = NV::HOME/.rnd
 [ req ]
 default_bits = 4096
@@ -40,7 +40,7 @@ EOF
 vi ca-scylla-certificate.cfg
 
 # Create the certificate authority (CA)
-openssl genrsa -out ca-scylla.key 4096
+openssl genrsa -aes256 -out ca-scylla.key 4096
 openssl req -x509 -new -nodes -key ca-scylla.key -days 36500 -config ca-scylla-certificate.cfg -out ca-scylla.pem
 ```
 
@@ -77,7 +77,7 @@ EOF
 vi scylla-server1.cfg
 
 # Create the server certificate.
-openssl genrsa -aes256 -out scylla-server1.key 4096
+openssl genrsa -out scylla-server1.key 4096
 openssl req -new -key scylla-server1.key -out scylla-server1.csr -config scylla-server1.cfg
 openssl x509 -req -in scylla-server1.csr -CA ca-scylla.pem -CAkey ca-scylla.key -CAcreateserial -out scylla-server1.crt -days 3650
 ```
