@@ -151,12 +151,10 @@ hostname = <host>.<domain>
 port = 9042
 factory = cqlshlib.ssl.ssl_transport_factory
 [ssl]
+certfile=/etc/scylla/ca-scylla.pem
 validate = true
 userkey = /etc/scylla/scylla-client1.key
 usercert = /etc/scylla/scylla-client1.crt
-[certfiles]
-<host1>.<domain>=/etc/scylla/keys/scylla-server1.crt
-<host2>.<domain>=/etc/scylla/keys/scylla-server2.crt
 ```
 
 ValuStor can be configured as follows:
