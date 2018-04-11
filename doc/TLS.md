@@ -77,7 +77,7 @@ EOF
 vi scylla-server1.cfg
 
 # Create the server certificate.
-openssl genrsa -out scylla-server1.key 4096
+openssl genrsa -aes256 -out scylla-server1.key 4096
 openssl req -new -key scylla-server1.key -out scylla-server1.csr -config scylla-server1.cfg
 openssl x509 -req -in scylla-server1.csr -CA ca-scylla.pem -CAkey ca-scylla.key -CAcreateserial -out scylla-server1.crt -days 3650
 ```
