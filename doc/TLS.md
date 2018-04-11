@@ -120,6 +120,13 @@ openssl req -new -key scylla-client1.key -out scylla-client1.csr -config scylla-
 openssl x509 -req -in scylla-client1.csr -CA ca-scylla.pem -CAkey ca-scylla.key -CAcreateserial -out scylla-client1.crt -days 3650
 ```
 
+Once all the client certificates have been created, create a master file.
+This file will be used to manage client certificates.
+New ones can be added to the file at any time and old ones removed as needed.
+```
+cat scylla-client*.crt > scylla-master-clients.crt
+```
+
 Now that the certificates have been generated, ScyllaDB must be configured to use them. Edit the 
 `/etc/scylla/scylla.yaml` file on each server and make the following changes:
 ```
@@ -135,7 +142,7 @@ client_encryption_options:
     certificate: /etc/scylla/scylla-server1.crt
     keyfile: /etc/scylla/scylla-server1.key
     require_client_auth: true
-    truststore: /etc/scylla/ca-scylla.pem
+    truststore: /etc/scylla/scylla-master-clients.crt
 ```
 Restart the scylla server.
 
@@ -166,4 +173,3 @@ client_ssl_cert = /etc/scylla/keys/scylla-client1.crt
 client_ssl_key = /etc/scylla/keys/scylla-client1.key
 client_key_password = password
 ```
-
