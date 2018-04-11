@@ -160,7 +160,7 @@ usercert = /etc/scylla/scylla-client1.crt
 ValuStor can be configured as follows:
 ```
 hosts = <host1>.<domain>, <host2>.<domain>
-server_trusted_cert = /etc/scylla/keys/scylla-server1.crt, /etc/scylla/keys/scylla-server2.crt
+server_trusted_cert = /etc/scylla/ca-scylla.pem
 server_verify_mode = 3
 client_ssl_cert = /etc/scylla/keys/scylla-client1.crt
 client_ssl_key = /etc/scylla/keys/scylla-client1.key
