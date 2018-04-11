@@ -37,7 +37,7 @@ keyUsage = nonRepudiation, digitalSignature, keyEncipherment
 EOF
 
 # Edit the certificate configuration.
-vi ca-scylla-certificate.cfg
+vi ca-scylla.cfg
 
 # Create the certificate authority (CA)
 openssl genrsa -aes256 -out ca-scylla.key 4096
