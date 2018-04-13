@@ -1,5 +1,9 @@
 /*
-MIT License
+ValuStor - Scylla DB key-value pair storage
+
+version 1.0.0
+
+Licensed under the MIT License
 
 Copyright (c) 2017-2018 Sensaphone
 
