@@ -182,7 +182,7 @@ The following Cassandra data types (along with their C++ equivalent) are support
 ValuStor is implemented as a template class using two constructors.
 See the [usage documentation](#usage).
 ```C++
-  template<typename Key_T, typename Val_T> class ValuStor
+  template<typename Val_T, typename Key_T...> class ValuStor
 
   ValuStor::ValuStor(std::string config_file)
   ValuStor::ValuStor(std::map<std::string, std::string> configuration_kvp)
@@ -190,9 +190,11 @@ See the [usage documentation](#usage).
 
 The public API is very simple:
 ```C++
-  ValuStor::Result store(Key_T key, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode)
-  ValuStor::Result retrieve(Key_T key)
+  ValuStor::Result store(Key_T... keys, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode)
+  ValuStor::Result retrieve(Key_T... keys, size_t key_count)
 ```
+
+Both single and compound keys are supported.
 
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
 Setting a value of 0 means the record will not expire.
@@ -202,12 +204,19 @@ The optional insert modes are `ValuStor::DISALLOW_BACKLOG`, `ValuStor::ALLOW_BAC
 If the backlog is disabled, any failures will be permanent and there will be no further retries.
 If the backlog is enabled, failures will retry automatically until they are successful or the ValuStor object is deleted.
 
+The optional key count is the number of keys to include in the WHERE clause of a value SELECT.
+A key count of 0 (the default) means all keys are used and at most only one record can be returned.
+If fewer than all the keys are used, the retrieval may return multiple records.
+While all keys must be specified as function parameters, if you are only using a subset of keys, the values of the unused keys are "don't care".
+NOTE: You must always specify a [partition key](https://docs.datastax.com/en/cql/3.1/cql/ddl/ddl_compound_keys_c.html) completely,
+but you can leave out all or part of the clustering key.
+
 The ValuStor::Result has the following data members:
 ```C++
   ErrorCode_t error_code
   std::string result_message
   Val_T data
-  size_t size
+  std::vector<std::pair<Val_T, std::tuple<Keys...>>> results;
 ```
 Requests that fail to commit changes to the database store will return an unsuccessful error code,
 unless the backlog mode is set to `USE_ONLY_BACKLOG`.
@@ -227,18 +236,26 @@ The ValuStor::ErrorCode_t is one of the following:
   ValuStor::NOT_FOUND
 ```
 
+Data for a single record (the default for `store()`) will be returned in `Result::data`.
+Data for multiple records are returned in the `Result::results` along with the keys associated with each record.
+
 ## Usage
 
 Writing code to use ValuStor is very easy.
 You only need a constructor and then call the `store()` and `retrieve()` functions in any combination.
 Connection management is automatic.
 
+The following example shows the most basic key-value pair usage:
+
 Code:
 ```C++
   #include "ValuStor.hpp"
   ...  
 
-  ValuStor::ValuStor<int64_t, std::string> store("example.conf");
+  // e.g. CREATE TABLE cache.values (key_field bigint, value_field text, PRIMARY KEY (key_field))
+  //
+  //                    <value>    <key>
+  ValuStor::ValuStor<std::string, int64_t> store("example.conf");
   auto store_result = store.store(1234, "value");
   if(store_result){
     auto retrieve_result = store.retrieve(1234);
@@ -257,31 +274,39 @@ You can use a file to load the configuration (as above) or
 specify the configuration in your code (as below).
 See the [example config](example.conf) for more information.
 
+The following example uses a compound key.
 Code:
 ```C++
   #include "ValuStor.hpp"
   ...  
   
-  ValuStor::ValuStor<int64_t, std::string> store({
+  // e.g. CREATE TABLE cache.values (k1 bigint, k2 bigint, v text, PRIMARY KEY (k1, k2))
+  ValuStor::ValuStor<std::string, int64_t, int64_t> store({
         {"table", "cache.values"},
-        {"key_field", "key_field"},
-        {"value_field", "value_field"},
+        {"key_field", "k1, k2"},
+        {"value_field", "v"},
         {"username", "username"},
         {"password", "password"},
         {"hosts", "127.0.0.1"}
   });
-  auto store_result = store.store(1234, "value");
+
+  store.store(1234, 10, "first");
+  store.store(1234, 20, "last");
   if(store_result){
     auto retrieve_result = store.retrieve(1234);
-    if(retrieve_result){
-      std::cout << 1234 << " => " << result.data << std::endl;
+    for(auto& pair : retrieve_result.results){
+      std::cout << "{\"k1\":" << std::get<0>(pair.second)
+                << ", \"k2\":" << std::get<1>(pair.second)
+                << ", \"v\":\"" << pair.first << "\""
+                << std::endl;
     }
   }
 ```
 
 Output:
-```  
-  1234 => value
+```
+  {"k1":1234, "k2":10, "v":"first"}
+  {"k1":1234, "k2":20, "v":"last"}
 ```
 
 ## JSON
@@ -293,7 +318,7 @@ To use it, include the json header before the ValuStor header:
 #include "nlohmann/json.hpp"
 #include "ValuStor.hpp"
 ...
-ValuStor::ValuStor<int64_t, nlohmann::json> valuestore("example.conf");
+ValuStor::ValuStor<nlohmann::json, int64_t> valuestore("example.conf");
 ```
 
 ## Thread Safety
@@ -313,11 +338,10 @@ There is no way to read-and-modify (including prepending/appending) data atomica
 
 ## Future
 There are a number of new features on the roadmap.
-1. Compound key support (with multiple reads)
-2. Improved support for asynchronous distributed message queue applications.
-3. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
-4. Command line programs useful for scripting, etc.
-5. Counter type support (increment/decrement)
+1. Improved support for asynchronous distributed message queue applications.
+2. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
+3. Command line programs useful for scripting, etc.
+4. Counter type support (increment/decrement)
 
 ## History
 This project was created at [Sensaphone](https://www.sensaphone.com) to solve memcached's lack of redundancy, 
