@@ -23,7 +23,7 @@ as demand increases. With configurable levels of redundancy, you can decide how 
 you want on each database node according to your own tolerance for failure.
 
 By using a fully typed database, we can do more than just "string => string" key-value pairs. The project 
-[supports](#database setup) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
+[supports](#database-setup) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
 it easy to integrate different combinations.
 
 There is one important caveat. While memcached allows support for a fixed memory profile, the ScyllaDB data store 
@@ -35,22 +35,22 @@ full data set. Alternatively, precision use of TTL records for automatic deletio
 supported.
 
 ## Key Features
-* Single header-only implementation makes it easy to drop into C++ projects.
-* A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
-* [Adaptive](#consistencies) fault tolerance, consistency, and availability.
-* [TLS support](#tls), including client authentication
-* Supports a variety of native C++ data types in the keys and values.
- * 8-, 16-, 32-, and 64-bit signed integers
- * single- and double-precision floating point numbers
- * boolean
- * strings
- * binary data (blobs)
- * UUID
- * [JSON](#json)
-* [Simple API](#api): Only a single `store()` and a single `retrieve()` function are needed. There is no need to write database queries.
-* RAM-like performance for most applications.
-* There is no need to batch read or write requests for performance.
-* There is no special client configuration required for redundancy, scalability, or multi-thread performance.
+- Single header-only implementation makes it easy to drop into C++ projects.
+- A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
+- [Adaptive](#consistencies) fault tolerance, consistency, and availability.
+- [TLS support](#tls), including client authentication
+- Supports a variety of native C++ data types in the keys and values.
+  - 8-, 16-, 32-, and 64-bit signed integers
+  - single- and double-precision floating point numbers
+  - boolean
+  - strings
+  - binary data (blobs)
+  - UUID
+  - [JSON](#json)
+- [Simple API](#api): Only a single `store()` and a single `retrieve()` function are needed. There is no need to write database queries.
+- RAM-like performance for most applications.
+- There is no need to batch read or write requests for performance.
+- There is no special client configuration required for redundancy, scalability, or multi-thread performance.
 
 ## Backlog
 This project incorporates a backlog to queue changes locally for times when the remote server is unavailable.
@@ -105,6 +105,8 @@ consistency level can also be controlled using this approach (i.e. `QUORUM, QUOR
 ## Configuration
 
 ### Dependencies
+This project requires a C++11 compatible compiler. This project has been tested with g++ 5.4.0.
+
 The Cassandra C/C++ driver is required. See https://github.com/datastax/cpp-driver/releases
 This project has only been tested with version 2.7.1 and 2.8.1, but in principle it should work with other versions.
 Example installation:
@@ -143,7 +145,7 @@ service scylla-server start
 ```
 
 ### TLS
-Using TLS for encryption and authentication is highly recommended. It is not difficult to setup. See the [instructions](doc/TLS.md)
+Using TLS for encryption and authentication is highly recommended. It is not difficult to setup. See the [instructions](doc/TLS.md).
 
 ### Database Setup
 Configuration can use either a configuration file or setting the same configuration at runtime.
@@ -159,7 +161,7 @@ The only requirement is to set the following fields:
 ```
 
 The schema of a scylla table should be setup as follows:
-```cql
+```
   CREATE TABLE <database>.<table> (
     <key_field> bigint PRIMARY KEY,
     <value_field> text
@@ -275,6 +277,7 @@ specify the configuration in your code (as below).
 See the [example config](example.conf) for more information.
 
 The following example uses a compound key.
+
 Code:
 ```C++
   #include "ValuStor.hpp"
@@ -338,10 +341,10 @@ There is no way to read-and-modify (including prepending/appending) data atomica
 
 ## Future
 There are a number of new features on the roadmap.
-1. Improved support for asynchronous distributed message queue applications.
+1. Usage guide for asynchronous distributed message queue applications.
 2. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
 3. Command line programs useful for scripting, etc.
-4. Counter type support (increment/decrement)
+4. Counter type support (increment/decrement).
 
 ## History
 This project was created at [Sensaphone](https://www.sensaphone.com) to solve memcached's lack of redundancy, 
