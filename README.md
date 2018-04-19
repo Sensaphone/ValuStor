@@ -1,38 +1,13 @@
 # ValuStor
-ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a 
-number of out-of-the-box limitations including lack of persistent storage, type-inflexibility, no direct redundancy 
-or failover capabilities, poor scalability, and lack of TLS support. It can also be used for [JSON](#json) document 
-storage and asynchronous distributed message queue applications. It is an easy to use, single-file, header-only C++11-compatible 
-project.
 
-This project wraps key-value pair operations around [ScyllaDB](https://www.scylladb.com), a Cassandra-compatible 
-database written in C++. It is a disk-backed data store with an in-RAM cache. In many cases, the entire data set 
-can be stored in the database cache, resulting in 100% cache hits. If the data can only be found on disk, ScyllaDB 
-is still one of the highest performing, lowest latency, disk-based databases anywhere.
+## Summary
+ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a number of out-of-the-box 
+limitations including lack of persistent storage, type-inflexibility, no direct redundancy or failover capabilities, poor scalability, and 
+lack of TLS support. It can also be used for [JSON](#json) document storage and asynchronous distributed message queue applications. It is 
+an easy to use, single-file, header-only C++11-compatible project.
 
-ScyllaDB is a NoSQL eventually-consistent database, which is advantageous for many cache applications. Memcached 
-makes no guarantees that a key will return a value that was previously stored. When a memcached node goes down that 
-data is lost. A ScyllaDB cluster, with built in redundancy, can almost always return something. This project makes 
-use of [tunable consistency](#consistencies) by seeking high levels of consistency, but adaptively allowing for 
-lower levels of consistency in exchange for higher availability. Full quorum-level consistency can be used to 
-mirror other databases' all or nothing availability.
-
-With memcached you were limited to the amount of RAM allocated on each memcached node. There was no automatic way 
-to scale ever higher because cache evictions increased cache misses. ScyllaDB lets you easily scale up arbitrarily 
-as demand increases. With configurable levels of redundancy, you can decide how many copies of each piece of data 
-you want on each database node according to your own tolerance for failure.
-
-By using a fully typed database, we can do more than just "string => string" key-value pairs. The project 
-[supports](#database-setup) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
-it easy to integrate different combinations.
-
-There is one important caveat. While memcached allows support for a fixed memory profile, the ScyllaDB data store 
-does not. Memcached keeps performance guarantees by evicting cached data, while ScyllaDB retrieves it from disk. 
-The extreme performance of ScyllaDB makes this negligible for many applications. However, to maintain strict 
-absolute RAM-based access performance, [enough memory is 
-required](http://docs.scylladb.com/faq/#do-i-ever-need-to-disable-the-scylla-cache-to-use-less-memory) to store the 
-full data set. Alternatively, precision use of TTL records for automatic deletion of old cache records is 
-supported.
+This project wraps abstracted client-side key-value-pair database operations around the Cassandra client driver using a simple API.
+It utilizes a [ScyllaDB](https://www.scylladb.com) database backend.
 
 ## Key Features
 - Single header-only implementation makes it easy to drop into C++ projects.
@@ -42,15 +17,43 @@ supported.
 - Supports a variety of native C++ data types in the keys and values.
   - 8-, 16-, 32-, and 64-bit signed integers
   - single- and double-precision floating point numbers
-  - boolean
+  - booleans
   - strings
   - binary data (blobs)
   - UUID
   - [JSON](#json)
 - [Simple API](#api): Only a single `store()` and a single `retrieve()` function are needed. There is no need to write database queries.
-- RAM-like performance for most applications.
+- RAM-like database performance for most applications.
 - There is no need to batch read or write requests for performance.
 - There is no special client configuration required for redundancy, scalability, or multi-thread performance.
+
+## Rationale
+The key features require the use of a disk-backed data store. In order to compete with RAM-only database applications, such as memcached, 
+it must also have good in-RAM caching. We can give the database server enough RAM to store its entire data set in cache, typically 
+resulting in 100% cache hits. But what do we do if the data can only be found on disk? ScyllaDB is one of the highest performing, lowest 
+latency, disk-based databases anywhere. It allows many cache misses while still maintaining the high level of performance required in many 
+applications.
+
+Using a NoSQL eventually-consistent database is advantageous for many cache applications. Memcached makes no guarantees that a key will 
+return a value that was previously stored. When a memcached node goes down that data is lost. A ScyllaDB cluster, with built-in redundancy, 
+can almost always return something. This project harnesses client-side [tunable consistency](#consistencies). It seeks high levels of 
+consistency, but adaptively allows for lower levels of consistency in exchange for higher availability. Optional full quorum-level 
+consistency can be used to mirror other databases' all or nothing availability.
+
+With memcached you were limited to the amount of RAM allocated on each memcached node. There was no automatic way to scale ever higher 
+because cache evictions increased cache misses. ScyllaDB lets you easily scale up arbitrarily as demand increases. With configurable levels 
+of redundancy, you can decide how many copies of each piece of data you want on each database node according to your own tolerance for 
+failure. We combine this with a [write backlog queue](#backlog) to further increase failure resistence.
+
+By using a fully typed database, we can do more than just "string => string" key-value pairs. The project 
+[supports](#database-setup) integers, floating-points, strings, bytes (blobs), UUIDs, and JSON. C++ templates make 
+it easy to integrate different combinations, including compound key support.
+
+There is one important caveat. While memcached allows support for a fixed memory profile, the underlying data store does not. Memcached 
+keeps performance guarantees by evicting cached data, while ScyllaDB retrieves it from disk. The extreme database performance makes this 
+negligible for many applications. However, to maintain strict absolute RAM-based access performance, [enough memory is 
+required](http://docs.scylladb.com/faq/#do-i-ever-need-to-disable-the-scylla-cache-to-use-less-memory) to store the full data set. 
+Alternatively, precision use of TTL records for automatic deletion of old cache records is supported.
 
 ## Backlog
 This project incorporates a backlog to queue changes locally for times when the remote server is unavailable.
@@ -198,6 +201,9 @@ The public API is very simple:
 
 Both single and compound keys are supported.
 
+Data for a single record (the default for `store()`) will be returned in `Result::data`.
+Data for multiple records are returned in the `Result::results` along with the keys associated with each record.
+
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
 Setting a value of 0 means the record will not expire.
 Setting a value of 1 is effectively a delete operation (after 1 second elapses).
@@ -237,9 +243,6 @@ The ValuStor::ErrorCode_t is one of the following:
   ValuStor::SUCCESS
   ValuStor::NOT_FOUND
 ```
-
-Data for a single record (the default for `store()`) will be returned in `Result::data`.
-Data for multiple records are returned in the `Result::results` along with the keys associated with each record.
 
 ## Usage
 
@@ -295,14 +298,12 @@ Code:
 
   store.store(1234, 10, "first");
   store.store(1234, 20, "last");
-  if(store_result){
-    auto retrieve_result = store.retrieve(1234);
-    for(auto& pair : retrieve_result.results){
-      std::cout << "{\"k1\":" << std::get<0>(pair.second)
-                << ", \"k2\":" << std::get<1>(pair.second)
-                << ", \"v\":\"" << pair.first << "\""
-                << std::endl;
-    }
+  auto retrieve_result = store.retrieve(1234);
+  for(auto& pair : retrieve_result.results){
+    std::cout << "{\"k1\":" << std::get<0>(pair.second)
+              << ", \"k2\":" << std::get<1>(pair.second)
+              << ", \"v\":\"" << pair.first << "\""
+              << std::endl;
   }
 ```
 
