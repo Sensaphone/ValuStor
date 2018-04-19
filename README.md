@@ -201,9 +201,6 @@ The public API is very simple:
 
 Both single and compound keys are supported.
 
-Data for a single record (the default for `store()`) will be returned in `Result::data`.
-Data for multiple records are returned in the `Result::results` along with the keys associated with each record.
-
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
 Setting a value of 0 means the record will not expire.
 Setting a value of 1 is effectively a delete operation (after 1 second elapses).
@@ -226,6 +223,9 @@ The ValuStor::Result has the following data members:
   Val_T data
   std::vector<std::pair<Val_T, std::tuple<Keys...>>> results;
 ```
+Data for a single record (the default for `store()`) will be returned in `Result::data`.
+Data for multiple records are returned in the `Result::results` along with the keys associated with each record.
+
 Requests that fail to commit changes to the database store will return an unsuccessful error code,
 unless the backlog mode is set to `USE_ONLY_BACKLOG`.
 If the backlog mode is set to `ALLOW_BACKLOG`, then the change will eventually be committed.
