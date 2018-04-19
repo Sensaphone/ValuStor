@@ -279,7 +279,7 @@ You can use a file to load the configuration (as above) or
 specify the configuration in your code (as below).
 See the [example config](example.conf) for more information.
 
-The following example uses a compound key.
+The following example uses a compound key and a multi-select retrieval.
 
 Code:
 ```C++
@@ -298,7 +298,7 @@ Code:
 
   store.store(1234, 10, "first");
   store.store(1234, 20, "last");
-  auto retrieve_result = store.retrieve(1234);
+  auto retrieve_result = store.retrieve(1234, -1/*don't care*/, 1);
   for(auto& pair : retrieve_result.results){
     std::cout << "{\"k1\":" << std::get<0>(pair.second)
               << ", \"k2\":" << std::get<1>(pair.second)
