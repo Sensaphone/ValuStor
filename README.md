@@ -189,8 +189,14 @@ See the [usage documentation](#usage).
 
 The public API is very simple:
 ```C++
-  ValuStor::Result store(Key_T... keys, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode, int64_t microseconds_since_epoch)
-  ValuStor::Result retrieve(Key_T... keys, size_t key_count)
+  ValuStor::Result store(Key_T... keys,
+                         Val_T value,
+                         uint32_t seconds_ttl,
+                         InsertMode_t insert_mode,
+                         int64_t microseconds_since_epoch)
+
+  ValuStor::Result retrieve(Key_T... keys,
+                            size_t key_count)
 ```
 
 Both single and compound keys are supported.
