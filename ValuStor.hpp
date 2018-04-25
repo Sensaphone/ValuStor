@@ -201,7 +201,7 @@ class ValuStor
     std::atomic<bool>* do_terminate_thread_ptr;
     std::shared_ptr<std::atomic<bool>> is_processing_backlog_ptr;
     std::mutex* backlog_mutex_ptr;
-    std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t>>* backlog_queue_ptr;
+    std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>>* backlog_queue_ptr;
     std::vector<std::string> keys;
 
     std::map<std::string, std::string> config;
@@ -547,7 +547,7 @@ class ValuStor
         std::atomic<bool> do_terminate_thread(false);
         std::mutex backlog_mutex;
         std::shared_ptr<std::atomic<bool>> is_processing_backlog = this->is_processing_backlog_ptr;
-        std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t>> backlog_queue;
+        std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>> backlog_queue;
 
         this->do_terminate_thread_ptr = &do_terminate_thread;
         this->backlog_mutex_ptr = &backlog_mutex;
@@ -584,7 +584,7 @@ class ValuStor
             //
             // Get all the entries in the backlog so we can attempt to send them.
             //
-            std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t>> backlog;
+            std::deque<std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>> backlog;
             {
               std::lock_guard<std::mutex> lock( backlog_mutex );
               backlog = backlog_queue;
@@ -596,7 +596,7 @@ class ValuStor
             // Attempt to process the backlog.
             //
             if(*is_processing_backlog){
-              std::vector<std::tuple<std::tuple<Keys...>,Val_T,int32_t>> unprocessed;
+              std::vector<std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>> unprocessed;
               for(auto& request : backlog){
                 if(not do_terminate_thread){
                   //
@@ -607,6 +607,7 @@ class ValuStor
                                                              std::get<1>(request), // Val_T
                                                              std::get<2>(request), // TTL
                                                              DISALLOW_BACKLOG,     // InsertMode
+                                                             std::get<3>(request), // insert time
                                                              typename Sequencer<std::tuple_size<std::tuple<Keys...>>{}>::Indices{});
                   if(not result){
                     unprocessed.push_back(request);
@@ -957,8 +958,13 @@ class ValuStor
     /// @brief           Internal version of store() used by the backlog.
     ///
     template <class Tuple, size_t... IndexSequence>
-    ValuStor::Result call_store(Tuple t, const Val_T& value, int32_t seconds_ttl, InsertMode_t insert_mode, Indices<IndexSequence...>) {
-      return store( std::get<IndexSequence>(t)..., value, seconds_ttl, insert_mode);
+    ValuStor::Result call_store(Tuple t,
+                                const Val_T& value,
+                                int32_t seconds_ttl,
+                                InsertMode_t insert_mode,
+                                int64_t insert_microseconds_since_epoch,
+                                Indices<IndexSequence...>) {
+      return store( std::get<IndexSequence>(t)..., value, seconds_ttl, insert_mode, insert_microseconds_since_epoch);
     }
 
   public:
@@ -972,7 +978,11 @@ class ValuStor
     ///
     /// @return          'true' if successful, 'false' otherwise.
     ///
-    ValuStor::Result store(const Keys&... keys, const Val_T& value, int32_t seconds_ttl = 0, InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE){
+    ValuStor::Result store(const Keys&... keys,
+                           const Val_T& value,
+                           int32_t seconds_ttl = 0,
+                           InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE,
+                           int64_t insert_microseconds_since_epoch = 0){
       //
       // Make sure we are initialized
       //
@@ -988,9 +998,13 @@ class ValuStor
       std::string error_message = "Scylla Error";
 
       if(insert_mode == USE_ONLY_BACKLOG){
+        int64_t the_time = insert_microseconds_since_epoch != 0 ?
+                            insert_microseconds_since_epoch :
+                            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         {
           std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
-          this->backlog_queue_ptr->push_back(std::tuple<std::tuple<Keys...>,Val_T,int32_t>(std::tuple<Keys...>(keys...), value, seconds_ttl));
+          this->backlog_queue_ptr->push_back(std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>(
+                                               std::tuple<Keys...>(keys...), value, seconds_ttl, the_time));
         }
         error_code = SUCCESS;
         error_message = "Backlogged";
@@ -1002,6 +1016,10 @@ class ValuStor
       else{
         CassStatement* statement = cass_prepared_bind(this->prepared_insert);
         if(statement != nullptr){
+          if(insert_microseconds_since_epoch != 0){
+            cass_statement_set_timestamp(statement, insert_microseconds_since_epoch);
+          } // if
+
           CassError error = CASS_OK;
           {
             std::pair<CassError, size_t> error_keys = ValuStor::bind(statement, (size_t)0, keys...);
@@ -1054,8 +1072,14 @@ class ValuStor
       }
 
       if(error_code != SUCCESS and insert_mode == ALLOW_BACKLOG){
-        std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
-        this->backlog_queue_ptr->push_back(std::tuple<std::tuple<Keys...>,Val_T,int32_t>(std::tuple<Keys...>(keys...), value, seconds_ttl));
+        int64_t the_time = insert_microseconds_since_epoch != 0 ?
+                            insert_microseconds_since_epoch :
+                            std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        {
+          std::lock_guard<std::mutex> lock(*this->backlog_mutex_ptr);
+          this->backlog_queue_ptr->push_back(std::tuple<std::tuple<Keys...>,Val_T,int32_t,int64_t>(
+                                              std::tuple<Keys...>(keys...), value, seconds_ttl, the_time));
+        }
       }
 
       return ValuStor::Result(error_code, error_message, value, std::tuple<Keys...>(keys...));
