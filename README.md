@@ -67,15 +67,9 @@ Backlog use is optional and its use can be selected individually for each `store
 
 In order to maximize performance of the store functionality by using a (nearly) lockless design,
 a few design trade-offs were made:
-1. If the backlog receives two entries with the same key, it will not remove the older one.
-   They will be applied in chronological order, however, so eventually the newer one will replace the older.
-1. Older backlog entries may be processed after newer successful non-backlogged `store()` requests.
-   The default backlog mode should not be used if losing backlogged data is more acceptable than the chance of 
-   having overwritten newer data.
-   You can configure `store()` requests to only use the backlog.
-   While this reduces maximum performance, it eliminates any data consistency issues.
-1. `retrieve()` does not check the backlog.
-1. If the client cannot connect to a server and never has, failed `store()` calls will use the backlog queue.
+1. The backlog won't remove the older of multiple entries with the same key. This slightly reduces backlog performance.
+2. `retrieve()` does not check the backlog.
+3. If the client cannot connect to a server and never has, failed `store()` calls will use the backlog queue.
    Even if the server becomes accessible, the backlog thread will not begin to process automatically.
    The backlog processing will only being once the first `store()` call is successful.
 
@@ -195,7 +189,7 @@ See the [usage documentation](#usage).
 
 The public API is very simple:
 ```C++
-  ValuStor::Result store(Key_T... keys, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode)
+  ValuStor::Result store(Key_T... keys, Val_T value, uint32_t seconds_ttl, InsertMode_t insert_mode, int64_t microseconds_since_epoch)
   ValuStor::Result retrieve(Key_T... keys, size_t key_count)
 ```
 
@@ -215,6 +209,12 @@ If fewer than all the keys are used, the retrieval may return multiple records.
 While all keys must be specified as function parameters, if you are only using a subset of keys, the values of the unused keys are "don't care".
 NOTE: You must always specify a [partition key](https://docs.datastax.com/en/cql/3.1/cql/ddl/ddl_compound_keys_c.html) completely,
 but you can leave out all or part of the clustering key.
+
+The optional microseconds since epoch can be specified to explicitly control which inserted records are considered to be current in the
+database. It is possible for rapidly inserted stores *with the same key* to get applied out-of-order. Specifying this explicity removes all
+ambiguity, but makes it especially important that `store()` calls from multiple clients use the same synchronized time source. The default
+value of 0 lets the database apply the timestamp automatically. If no timestamp is explicitly given, stores added to the backlog will use
+the timestamp of when they were added to the queue.
 
 The ValuStor::Result has the following data members:
 ```C++
