@@ -48,10 +48,10 @@ docstore.store(document_id, document);
 ```
 
 The following example uses a string as the partition key and a UUID revision number as the clustering key.
-```
+```C++
 #include "nlohmann/json.hpp"
 #include "ValuStor.hpp"
-...C++
+...
 // CREATE TABLE documents.docs (document_id text, revision uuid, json text, PRIMARY KEY (document_name, revision))
 ValuStor::ValuStor<nlohmann::json, std::string, CassUuid> docstore("example.conf");
 
