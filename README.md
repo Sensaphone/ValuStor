@@ -203,18 +203,18 @@ The optional insert modes are `ValuStor::DISALLOW_BACKLOG`, `ValuStor::ALLOW_BAC
 If the backlog is disabled, any failures will be permanent and there will be no further retries.
 If the backlog is enabled, failures will retry automatically until they are successful or the ValuStor object is deleted.
 
+The optional microseconds since epoch can be specified to explicitly control which inserted records are considered to be current in the
+database. It is possible for rapidly inserted stores *with the same key* to get applied out-of-order. Specifying this explicity removes all
+ambiguity, but makes it especially important that `store()` calls from multiple clients use the same synchronized time source. The default
+value of 0 lets the database apply the timestamp automatically. If no timestamp is explicitly given, stores added to the backlog will use
+the timestamp of when they were added to the queue.
+
 The optional key count is the number of keys to include in the WHERE clause of a value SELECT.
 A key count of 0 (the default) means all keys are used and at most only one record can be returned.
 If fewer than all the keys are used, the retrieval may return multiple records.
 While all keys must be specified as function parameters, if you are only using a subset of keys, the values of the unused keys are "don't care".
 NOTE: You must always specify a [partition key](https://docs.datastax.com/en/cql/3.1/cql/ddl/ddl_compound_keys_c.html) completely,
 but you can leave out all or part of the clustering key.
-
-The optional microseconds since epoch can be specified to explicitly control which inserted records are considered to be current in the
-database. It is possible for rapidly inserted stores *with the same key* to get applied out-of-order. Specifying this explicity removes all
-ambiguity, but makes it especially important that `store()` calls from multiple clients use the same synchronized time source. The default
-value of 0 lets the database apply the timestamp automatically. If no timestamp is explicitly given, stores added to the backlog will use
-the timestamp of when they were added to the queue.
 
 The ValuStor::Result has the following data members:
 ```C++
