@@ -2,13 +2,13 @@
 
 ## JSON Document Storage
 ValuStor can be used as a JSON document store.
-Follow the JSON for Modern C++ [integration instructions](https://github.com/Sensaphone/ValuStor#json) to enable JSON support in ValuStor.
+Follow the [integration instructions](https://github.com/Sensaphone/ValuStor#json) to enable JSON for Modern C++ support in ValuStor.
 
 It is important to setup an appropriate primary key.
 This can be as simple as a UUID or a more complex combination of fields.
-If a [clustering key](https://docs.datastax.com/en/cql/3.1/cql/ddl/ddl_compound_keys_c.html) is used 
-in order to store multiple documents under the same partition key, the total size of the documents should be kept under 10MB for
-maximum storage efficiency. Multiple documents can only be retrieved in a single `retrieve()` if they share the same partition key.
+If a [clustering key](https://docs.datastax.com/en/cql/3.1/cql/ddl/ddl_compound_keys_c.html) is used for storing multiple documents
+under the same partition key, the total size of the documents should be kept under 10MB to maximize cache efficiency.
+Multiple documents can only be retrieved in a single `retrieve()` if they share the same partition key.
 
 If you handle your JSON data in string form, you can do the following:
 ```C++

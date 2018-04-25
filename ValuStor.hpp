@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.0-rc1
+version 1.0.0-rc2
 
 Licensed under the MIT License
 

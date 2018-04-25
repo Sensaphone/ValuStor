@@ -4,7 +4,7 @@
 ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a number of out-of-the-box 
 limitations including lack of persistent storage, type-inflexibility, no direct redundancy or failover capabilities, poor scalability, and 
 lack of TLS support. It can also be used for [JSON](#json) document storage and asynchronous distributed message queue applications. It is 
-an easy to use, single-file, header-only C++11-compatible project.
+an easy to use, single-file, header-only C++11-compatible project. (See the [usage guide](doc/UsageGuide.md))
 
 This project wraps abstracted client-side key-value-pair database operations around the Cassandra client driver using a simple API.
 It utilizes a [ScyllaDB](https://www.scylladb.com) database backend.
@@ -187,19 +187,19 @@ See the [usage documentation](#usage).
   ValuStor::ValuStor(std::map<std::string, std::string> configuration_kvp)
 ```
 
+Both single and compound keys are supported.
+
 The public API is very simple:
 ```C++
   ValuStor::Result store(Key_T... keys,
                          Val_T value,
-                         uint32_t seconds_ttl,
-                         InsertMode_t insert_mode,
-                         int64_t microseconds_since_epoch)
+                         uint32_t seconds_ttl = 0,
+                         InsertMode_t insert_mode = ValuStor::DEFAULT_BACKLOG_MODE,
+                         int64_t microseconds_since_epoch = 0)
 
   ValuStor::Result retrieve(Key_T... keys,
                             size_t key_count)
 ```
-
-Both single and compound keys are supported.
 
 The optional seconds TTL is the number of seconds before the stored value expires in the database.
 Setting a value of 0 means the record will not expire.
