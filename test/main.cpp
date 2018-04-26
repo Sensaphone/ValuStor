@@ -8,8 +8,7 @@ int main(void){
   //
   // CREATE TABLE cache.tbl111 (k tinyint PRIMARY KEY, v blob) WITH compaction = {'class': 'SizeTieredCompactionStrategy'} AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'};
   //
-
-  ValuStor::ValuStor<int8_t, std::vector<uint8_t>> store(
+  ValuStor::ValuStor<std::vector<uint8_t>, int8_t> store(
    {
     {"table", "cache.tbl111"},
     {"key_field", "k"},

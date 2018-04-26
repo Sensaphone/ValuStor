@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.0-rc1
+version 1.0.0-rc2
 
 Licensed under the MIT License
 
@@ -119,6 +119,31 @@ template<size_t T> struct Sequencer : Indexer<Indices<0>, typename Sequencer<T-1
 //
 // Specialization (base/terminating case):
 template<> struct Sequencer<1> : Indices<0>{};
+
+// ****************************************************************************************************
+/// @class         ValuStorUUIDGen
+///
+/// @brief         Contains a CassUuidGen* that is used to globally generate CassUuid.
+///                According to the documentation it is thread-safe and there should be one per application.
+///
+class ValuStorUUIDGen{
+  public:
+    CassUuidGen* const uuid_gen;
+
+  private:
+    ValuStorUUIDGen(void):
+      uuid_gen(cass_uuid_gen_new())
+    {}
+    ~ValuStorUUIDGen(void){
+      cass_uuid_gen_free(this->uuid_gen);
+    }
+
+  public:
+    static ValuStorUUIDGen& instance(void){
+      static ValuStorUUIDGen generator;
+      return generator;
+    }
+};
 
 // ****************************************************************************************************
 /// @class         ValuStor
@@ -1128,7 +1153,11 @@ class ValuStor
       return std::pair<CassError, size_t>(cass_statement_bind_bool(stmt, index, cass_bool), 1);
     }
     static std::pair<CassError, size_t> bind(CassStatement* stmt, size_t index, const CassUuid& value) {
-      return std::pair<CassError, size_t>(cass_statement_bind_uuid(stmt, index, value), 1);
+      CassUuid uuid = value;
+      if(value.time_and_version == 0 and value.clock_seq_and_node == 0){
+        cass_uuid_gen_time(ValuStorUUIDGen::instance().uuid_gen, &uuid);
+      } // if
+      return std::pair<CassError, size_t>(cass_statement_bind_uuid(stmt, index, uuid), 1);
     }
     static std::pair<CassError, size_t> bind(CassStatement* stmt, size_t index, const std::vector<uint8_t>& value) {
       return std::pair<CassError, size_t>(cass_statement_bind_bytes(stmt, index, value.data(), value.size()), 1);

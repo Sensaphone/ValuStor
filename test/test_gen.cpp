@@ -99,7 +99,7 @@ int main(void){
                             "";
 
       cout << "{" << endl
-           << "  ValuStor::ValuStor<" << key << ", " << val << "> store({"
+           << "  ValuStor::ValuStor<" << val << ", " << key << "> store({"
            << "{\"table\", \"cache.tbl" << std::to_string(x++) << "\"},"
            << "{\"key_field\", \"k\"},"
            << "{\"value_field\", \"v\"},"
