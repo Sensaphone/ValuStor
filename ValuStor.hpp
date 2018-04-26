@@ -603,11 +603,6 @@ class ValuStor
           catch(...){}
         }
         *is_processing_backlog = false;
-
-        //
-        // Try to initialize
-        //
-
         while(not do_terminate_thread){
           try{
             std::this_thread::sleep_for(std::chrono::seconds(2));
