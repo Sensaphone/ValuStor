@@ -1,5 +1,139 @@
 # Usage Guide
 
+Topics
+- [Memcached Replacement](#memcached-replacement)
+- [JSON Document Storage](#json-document-storage)
+
+## Memcached Replacement
+This guide shows how to replace the C/C++ [libmemcached](http://docs.libmemcached.org/index.html) library with ValuStor.
+
+### Configuration ###
+```C++
+// libmemcached configuration
+const char* hosts= "--SERVER=host1 --SERVER=host12"
+memcached_st *memc = memcached(hosts, strlen(hosts);
+// ... memcached_pool_*() for server pools.
+// ... memcached_set_encoding_key() for AES encryption.
+// ... memcached_server_*() for server management
+// ... memcached_flush_buffers() for connection management
+memcached_free(memc);
+
+// ValuStor configuration
+ValuStor::ValuStor<std::string, std::string> store(
+ {
+  {"table", "database.table"},
+  {"key_field", "key_field"},
+  {"value_field", "value_field"},
+  {"username", "username"},
+  {"password", "password"},
+  {"hosts", "host1,host2"},
+  {"server_trusted_cert", "/etc/scylla/server.crt"},
+ });
+```
+For ValuStor this configuration includes multi-threading built into the library.
+Multi-threading with libmemcached must be programmed by the client software.
+
+
+### Reads ###
+Single reads are handled like this:
+```C++
+// libmemcached
+std::string key = "key to find";
+memcached_return rc;
+size_t value_length = 0;
+uint32_t flags = 0;
+char* result = memcached_get(memc, key.c_str(), key.size(), &value_length, &flags, &rc);
+if(rc == MEMCACHED_SUCCESS){
+  std::string value_found(result);
+}
+else{
+  std::string error_message(memcached_last_error_message(memc));
+}
+
+// ValuStor
+auto result = store.retrieve("key to find");
+if(result){
+  std::string value_found = result.data;
+}
+else{
+  std::string error_message = result.result_message;
+}
+```
+
+The following shows how to read multiple values:
+```C++
+// libmemcached
+const char* keys[] = {"key1", "key2", "key3"};
+size_t key_count = sizeof(keys) / sizeof(const char*);
+size_t key_length[key_count];
+memcached_return rc = memcached_mget(memc, keys, key_length, key_count);
+char *return_value;
+char return_key[MEMCACHED_MAX_KEY];
+size_t return_key_length;
+size_t return_value_length;
+uint32_t flags;
+while((return_value= memcached_fetch(memc, return_key, &return_key_length, &return_value_length, &flags, &rc))){
+  std::string key(return_key, return_key_length);
+  std::string val(return_value, return_value_length);
+  free(return_value);
+  ...
+}
+
+// ValuStor
+std::vector<std::string> keys = {"key1", "key2", "key3"};
+for(auto& key : keys){
+  auto result = store.retrieve(key);
+  if(result){
+    std::string val = result.data;
+    ...
+  }
+}
+```
+Multiple simultaneous reads with ValuStor are normally not required: performance is very high just issuing multiple read requests.
+The cassandra client driver will automatically make use of multi-threading and multiple server connections to maximize throughput.
+If multiple reads are desired for application use, a compound key with a clutering key can be used.
+
+The client driver will also automatically figure out which database node contains the key and direct the request there.
+Memcached requires the additional use of the memcached_*get*_by_key() functions (not shown here) to perform this action.
+
+### Writes ###
+Single writes are handled like this:
+```C++
+// libmemcached
+std::string key = "key to use";
+std::string value = "value to write";
+time_t expiration = time(nullptr) + 1000; // or '0' for no expiration
+memcached_return rc = memcached_set(memc, key_to_use.c_str(), key_to_use.size(), value.c_str(), value.size(), expiration_time, 0);
+
+// ValuStor
+auto result = store.store("key to use", "value to write", 1000); // or '0' for no expiration
+```
+
+Like reads, there is no reason in ValuStor to batch multiple writes.
+Just call `store()` multiple times and the client driver will automatically multi-thread the work as needed.
+There is no need for functions like memcached_*set*_by_key() as the data is stored on the correct database nodes automatically.
+Perform multiple writes as follows:
+```C++
+// ValuStor
+std::vector<std::pair<std::string, std::string>> kvp = {{"key1", "value1"}, {"key2", "value2"}, {"key3", "value3}};
+for(auto& pair : kvp){
+  store.store(pair.first, pair.second);
+}
+```
+
+To keep the interface simple, ValuStor does not (currently) implement a delete function.
+Data can be deleted from ValuStor quickly by setting the expiration date to 1 second:
+```C++
+// ValuStor
+auto result = store.retrieve("key to delete");
+if(result){
+  store.store("key to delete", result.data, 1); // will be deleted in 1 second
+}
+```
+
+NOTE: ValuStor does not support [atomicity](/#atomicity) across multiple reads and/or writes, so there are no strict equivalents for
+`memcached_replace()`, `memcached_add()`, `memcached_prepend()`, `memcached_append()` and `memcached_cas()`.
+
 ## JSON Document Storage
 ValuStor can be used as a JSON document store.
 Follow the [integration instructions](https://github.com/Sensaphone/ValuStor#json) to enable JSON for Modern C++ support in ValuStor.
