@@ -1,6 +1,6 @@
 # Usage Guide
 
-Topics
+This usage guide contains some example uses for ValuStor.
 - [Memcached Replacement](#memcached-replacement)
 - [JSON Document Storage](#json-document-storage)
 
@@ -94,7 +94,7 @@ The cassandra client driver will automatically make use of multi-threading and m
 If multiple reads are desired for application use, a compound key with a clutering key can be used.
 
 The client driver will also automatically figure out which database node contains the key and direct the request there.
-Memcached requires the additional use of the memcached_*get*_by_key() functions (not shown here) to perform this action.
+Memcached requires the additional use of the memcached_\*get\*_by_key() functions (not shown here) to perform this action.
 
 ### Writes ###
 Single writes are handled like this:
@@ -111,7 +111,7 @@ auto result = store.store("key to use", "value to write", 1000); // or '0' for n
 
 Like reads, there is no reason in ValuStor to batch multiple writes.
 Just call `store()` multiple times and the client driver will automatically multi-thread the work as needed.
-There is no need for functions like memcached_*set*_by_key() as the data is stored on the correct database nodes automatically.
+There is no need for functions like memcached_\*set\*_by_key() as the data is stored on the correct database nodes automatically.
 Perform multiple writes as follows:
 ```C++
 // ValuStor
@@ -131,7 +131,7 @@ if(result){
 }
 ```
 
-NOTE: ValuStor does not support [atomicity](/#atomicity) across multiple reads and/or writes, so there are no strict equivalents for
+NOTE: ValuStor does not support [atomicity](/README.md#atomicity) across multiple reads and/or writes, so there are no strict equivalents for
 `memcached_replace()`, `memcached_add()`, `memcached_prepend()`, `memcached_append()` and `memcached_cas()`.
 
 ## JSON Document Storage
