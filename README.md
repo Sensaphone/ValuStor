@@ -59,19 +59,15 @@ Alternatively, precision use of TTL records for automatic deletion of old cache 
 This project incorporates a backlog to queue changes locally for times when the remote server is unavailable.
 If a `store()` request fails for any reason, it can be cached in the backlog to be committed later.
 In memcached this data would be lost or require the application to wait until the server returned.
-This is well-suited to asynchronous producer/consumer applications where the producer doesn't want to wait around
-for the server to become available and it is okay if the consumer gets the data eventually.
+ValuStor's behavior is well-suited to asynchronous producer/consumer applications where the producer doesn't
+want to wait around for the server to become available and it is okay if the consumer gets the data eventually.
 It's another layer of redundancy on top of an already solid database backend.
 
 Backlog use is optional and its use can be selected individually for each `store()` request.
+The default backlog mode can be set in the initial configuration.
 
-In order to maximize performance of the store functionality by using a (nearly) lockless design,
-a few design trade-offs were made:
-1. The backlog won't remove the older of multiple entries with the same key. This slightly reduces backlog performance.
-2. `retrieve()` does not check the backlog.
-3. If the client cannot connect to a server and never has, failed `store()` calls will use the backlog queue.
-   Even if the server becomes accessible, the backlog thread will not begin to process automatically.
-   The backlog processing will only being once the first `store()` call is successful.
+In order to maximize performance of the store functionality, the backlog won't remove the older of multiple entries with the same key.
+This slightly reduces backlog performance. Similarly, `retrieve()` maximizes performance by not checking the backlog.
 
 ## Consistencies
 In many traditional synchronized database clusters any writes are guaranteed to be available by a quorum of nodes 

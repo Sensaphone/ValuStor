@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.0-rc2
+version 1.0.0-rc3
 
 Licensed under the MIT License
 
@@ -218,7 +218,6 @@ class ValuStor
     std::map<size_t, const CassPrepared*> prepared_selects;
 
     std::atomic<bool> is_initialized;
-    std::mutex initialization_mutex;
     std::thread backlog_thread;
     InsertMode_t default_backlog_mode;
     std::vector<CassConsistency> read_consistencies;
@@ -451,15 +450,22 @@ class ValuStor
     } // configure()
 
     // ****************************************************************************************************
-    /// @name            initialize
+    /// @name            run_backlog_thread
     ///
-    /// @brief           Initialize the connection given a valid CassCluster* already setup.
+    /// @brief           Run the backlog thread.
     ///
-    void initialize(void){
+    void run_backlog_thread(void){
       //
-      // Only initialize once.
+      // Start the backlog thread
       //
-      if(not this->is_initialized){
+      std::atomic<bool> are_pointers_setup(false);
+
+      // *****************************************************************************
+      /// @name           initialize
+      ///
+      /// @brief          Initialize the connection given a valid CassCluster* already setup.
+      ///
+      auto initialize = [&](void){
         this->session = cass_session_new();
         CassFuture* connect_future = cass_session_connect(this->session, cluster);
         if(connect_future != nullptr){
@@ -548,21 +554,14 @@ class ValuStor
               this->session = nullptr;
             }
           }
-        }
-      }
-    } // initialize
+        }        
+      };
 
-    // ****************************************************************************************************
-    /// @name            run_backlog_thread
-    ///
-    /// @brief           Run the backlog thread.
-    ///
-    void run_backlog_thread(void){
-      //
-      // Start the backlog thread
-      //
-      std::atomic<bool> are_pointers_setup(false);
-
+      // *****************************************************************************
+      /// @name           backlog_thread
+      ///
+      /// @brief          The backlog thread handles initializing the connection and manages the backlog queue.
+      ///
       this->backlog_thread = std::thread([&](void){
         //
         // Setup the pointers back to the master thread.
@@ -595,9 +594,11 @@ class ValuStor
         // "do_terminate_thread" must be set first.
         // Once initialization takes place, we never need to access it again.
         //
+        initialize();
         while(not do_terminate_thread and not this->is_initialized){
           try{
             std::this_thread::sleep_for(std::chrono::seconds(1));
+            initialize();
           }
           catch(...){}
         }
@@ -719,12 +720,7 @@ class ValuStor
       this->configure();
 
       //
-      // Initialize the connection
-      //
-      this->initialize();
-
-      //
-      // Start the backlog thread
+      // Start the backlog thread (which will perform initialization)
       //
       this->run_backlog_thread();
     }
@@ -772,12 +768,7 @@ class ValuStor
       this->configure();
 
       //
-      // Initialize the connection
-      //
-      this->initialize();
-
-      //
-      // Start the backlog thread
+      // Start the backlog thread (which will perform initialization)
       //
       this->run_backlog_thread();
     }
@@ -858,20 +849,16 @@ class ValuStor
     /// @return          If 'result.first', the string value in 'result.second', otherwise not found.
     ///
     ValuStor::Result retrieve(Keys... keys, size_t count = 0){
-      //
-      // Make sure we are initialized
-      //
-      if(not this->is_initialized){
-        std::lock_guard<std::mutex> lock(initialization_mutex);
-        this->initialize(); // Only one thread at a time can try to initialize. Once successful store.is_initialized is set.
-      }
-
       ErrorCode_t error_code = UNKNOWN_ERROR;
       std::string error_message = "Scylla Error";
 
       std::vector<std::pair<Val_T, std::tuple<Keys...>>> retrieved_data;
 
-      if(this->prepared_selects.size() == 0){
+      if(not this->is_initialized){
+        error_code = SESSION_FAILED;
+        error_message = "Scylla Error: Could not connect to server(s)";
+      }
+      else if(this->prepared_selects.size() == 0){
         error_code = PREPARED_SELECT_FAILED;
         error_message = "Scylla Error: Prepared Select Failed";
       }
@@ -1008,13 +995,6 @@ class ValuStor
                            int32_t seconds_ttl = 0,
                            InsertMode_t insert_mode = DEFAULT_BACKLOG_MODE,
                            int64_t insert_microseconds_since_epoch = 0){
-      //
-      // Make sure we are initialized
-      //
-      if(not this->is_initialized){
-        std::lock_guard<std::mutex> lock(initialization_mutex);
-        this->initialize(); // Only one thread at a time can try to initialize. Once successful store.is_initialized is set.
-      }
 
       if(insert_mode == DEFAULT_BACKLOG_MODE){
         insert_mode = this->default_backlog_mode;
@@ -1033,6 +1013,10 @@ class ValuStor
         }
         error_code = SUCCESS;
         error_message = "Backlogged";
+      }
+      else if(not this->is_initialized){
+        error_code = SESSION_FAILED;
+        error_message = "Scylla Error: Could not connect to server(s)";
       }
       else if(this->prepared_insert == nullptr){
         error_code = PREPARED_INSERT_FAILED;
