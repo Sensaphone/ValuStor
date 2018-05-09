@@ -1,13 +1,16 @@
 # ValuStor
 
 ## Summary
-ValuStor is a key-value pair database solution originally designed as an alternative to memcached. It resolves a number of out-of-the-box 
-limitations including lack of persistent storage, type-inflexibility, no direct redundancy or failover capabilities, poor scalability, and 
-lack of TLS support. It can also be used for [JSON](#json) document storage and asynchronous distributed message queue applications. It is 
-an easy to use, single-file, header-only C++11-compatible project. (See the [usage guide](doc/UsageGuide.md))
+ValuStor is a key-value pair database solution originally designed as an [alternative to memcached](doc/UsageGuide.md#memcached-replacement).
+It resolves a number of out-of-the-box limitations including lack of persistent storage, type-inflexibility, 
+no direct redundancy or failover capabilities, poor scalability, and lack of TLS support.
+It can also be used for [JSON](#json) document storage and [asynchronous distributed messaging applications](doc/UsageGuide.md#distributed-messaging).
+It is an easy to use, single-file, header-only C++11-compatible project.
 
 This project wraps abstracted client-side key-value-pair database operations around the Cassandra client driver using a simple API.
 It utilizes a [ScyllaDB](https://www.scylladb.com) database backend.
+
+See the [usage guide](doc/UsageGuide.md) for example applications.
 
 ## Key Features
 - Single header-only implementation makes it easy to drop into C++ projects.
@@ -376,10 +379,9 @@ There is no way to read-and-modify (including prepending/appending) data atomica
 
 ## Future
 There are a number of new features on the roadmap.
-1. Usage guide for asynchronous distributed message queue applications.
-2. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
-3. Command line programs useful for scripting, etc.
-4. Counter type support (increment/decrement).
+1. File storage and access, à la [GridFS/Mongofiles](https://docs.mongodb.com/manual/reference/program/mongofiles/)
+2. Command line programs useful for scripting, etc.
+3. Counter type support (increment/decrement).
 
 ## History
 This project was created at [Sensaphone](https://www.sensaphone.com) to solve memcached's lack of redundancy, 
