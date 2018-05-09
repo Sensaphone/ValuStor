@@ -2,8 +2,8 @@
 
 This usage guide contains some example uses for ValuStor.
 - [Memcached Replacement](#memcached-replacement)
-- [Distributed Messaging](#distributed-messaging) (Publisher/Subscriber)
 - [JSON Document Storage](#json-document-storage)
+- [Distributed Messaging](#distributed-messaging) (Publisher/Subscriber)
 
 ## Memcached Replacement
 This guide shows how to replace the C/C++ [libmemcached](http://docs.libmemcached.org/index.html) library with ValuStor.
@@ -136,108 +136,6 @@ NOTE: ValuStor does not support [atomicity](/README.md#atomicity) across multipl
 `memcached_replace()`, `memcached_add()`, `memcached_prepend()`, `memcached_append()` and `memcached_cas()`.
 
 
-## Distributed Messaging
-ValuStor is not a a full-featured message queue system. Since it does not enforce a FIFO ordering,
-it can't directly be used to implement distributed worker queues. It can, however, be used for
-[publisher/subscriber applications](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) in
-non-direct fanout or topic mode. It the same advantages of a traditional pub/sub system:
-loose (asynchronous) coupling between the publishers and subscribers and high scalability.
-It also adds persistence and encryption/authentication.
-
-One advantage of this implementation is that it is, like ValuStor itself, geared towards 
-maximum availability. It has the optional ability to sacrifice some consistency for availability.
-Messages can be processed in-order during normal operation but when the broker is in degraded state
-subscribers can still process them out-of-order. A traditional pub/sub system would lose data or
-become unavailable. This is required for applications that would rather have partial information
-than no information.
-
-NOTE: This example implemention actually simulates the system-managed "subscription" by having the 
-subscription implemented in the application using the
-[observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) and having the observable poll 
-the broker (the backend database) for updates. This increases latency somewhat.
-
-### Overview
-
-First we must create a table used to store our messages:
-```
-CREATE TABLE messaging.messages (name text,
-                                 topic text,
-                                 slot bigint,
-                                 producer bigint,
-                                 sequence bigint,
-                                 record_time uuid,
-                                 data text,
-                                 PRIMARY KEY ((name, topic, slot), producer, sequence));
-```
-
-To make things simpler, the data is packaged in JSON.
-
-### Publish
-
-```C++
-#include "nlohmann/json.hpp"
-#include "ValuStor.hpp"
-...
-static long event_id = 1; // sequential ID
-static long update_id = 1; // sequential ID
-
-ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t, int64_t, int64_t, CassUuid> publisher({
-    {"table", "messaging.messages"},
-    {"key_field", "name, topic, slot, producer, sequence, record_time"},
-    {"value_field", "data"},
-    {"hosts", "host1,host2,host3"}
-  });
-
-int64_t time_slot = time(nullptr) / 300; // One time slot every 5 minutes
-uint32_t seconds_ttl = 60 * 60; // Messages have one hour persistence before expiring.
-
-// Event Message
-//   1) Event Type
-//   2) Event Data (KVP)
-nlohmann::json event;
-event["type"] = 100;
-event["data"]["key1"] = 1234;
-event["data"]["key2"] = 2345;
-event["data"]["key3"] = 3456;
-publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, seconds_ttl);
-
-// Data Update Message
-//   1) Unique ID
-//   2) Metadata
-//   3) Value
-nlohmann::json update;
-update["unique_id"] = 7694093;
-update["code1"] = 10;
-update["code2"] = 20;
-update["code3"] = 30;
-update["code4"] = 40;
-update["value"] = "Value";
-publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, update, seconds_ttl);
-```
-
-### Subscribe
-```C++
-ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t> subscriber("example.conf");
-
-std::map<int64_t, int64_t> producer_sequence_map; // producer => max sequence number seen
-...
-// Run this in a processing thread loop, updating "time_slot" as time moves on.
-
-// Retrieve messages for a given time slot
-auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
-for(auto& pair : results.results){
-  int64_t producer = std::get<3>(pair.second);
-  int64_t sequence = std::get<4>(pair.second);
-  int64_t time = std::get<5>(pair.second).time_and_version;
-  nlohmann::json payload = pair.first;
-
-  ... filter out messages we've already seen, sort the results, and store them ...
-}
-
-// Notify observers about the messages received.
-this->notify();
-```
-
 ## JSON Document Storage
 ValuStor can be used as a JSON document store.
 Follow the [integration instructions](https://github.com/Sensaphone/ValuStor#json) to enable JSON for Modern C++ support in ValuStor.
@@ -324,4 +222,113 @@ for(auto& result_pair : results.results){
   nlohmann::json doc = result_pair.first;
   ...
 }
+```
+
+
+## Distributed Messaging
+ValuStor is not a a full-featured message queue system. Since it does not enforce a FIFO ordering,
+it can't directly be used to implement distributed worker queues. It can, however, be used for
+[publisher/subscriber applications](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) in
+non-direct fanout or topic mode. It the same advantages of a traditional pub/sub system:
+loose (asynchronous) coupling between the publishers and subscribers and high scalability.
+It also adds persistence and encryption/authentication.
+
+One advantage of this implementation is that it is, like ValuStor itself, geared towards 
+maximum availability. It has the optional ability to sacrifice some consistency for availability.
+Messages can be processed in-order during normal operation but when the broker is in degraded state
+subscribers can still process them out-of-order. A traditional pub/sub system would lose data or
+become unavailable. This is required for applications that would rather have partial information
+than no information.
+
+Another problem with a traditional pub/sub system is that the ordering of the messages is determined by the
+ordering in the queue. This may not be desirable. For example, suppose two events are generated 10ms apart by
+two different producers. Due to processing delays, these may be inserted into the queue out of their created
+order. This example resolves that problem by using a combination of sequentially unique IDs and UUID timestamps.
+The subscriber code in the example automatically detects out-of-order events and reorders them.
+
+NOTE: This example implemention actually simulates the system-managed "subscription" by having the 
+subscription implemented in the application using the
+[observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) and having the observable poll 
+the broker (the backend database) for updates. This increases latency somewhat.
+
+### Overview
+
+First we must create a table used to store our messages:
+```
+CREATE TABLE messaging.messages (name text,
+                                 topic text,
+                                 slot bigint,
+                                 producer bigint,
+                                 sequence bigint,
+                                 record_time uuid,
+                                 data text,
+                                 PRIMARY KEY ((name, topic, slot), producer, sequence));
+```
+
+To make things simpler, the data is packaged in JSON.
+
+### Publish
+
+```C++
+#include "nlohmann/json.hpp"
+#include "ValuStor.hpp"
+...
+static long event_id = 1; // sequential ID
+static long update_id = 1; // sequential ID
+
+ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t, int64_t, int64_t, CassUuid> publisher({
+    {"table", "messaging.messages"},
+    {"key_field", "name, topic, slot, producer, sequence, record_time"},
+    {"value_field", "data"},
+    {"hosts", "host1,host2,host3"}
+  });
+
+int64_t time_slot = time(nullptr) / 300; // One time slot every 5 minutes
+uint32_t seconds_ttl = 60 * 60; // Messages have one hour persistence before expiring.
+
+// Event Message
+//   1) Event Type
+//   2) Event Data (KVP)
+nlohmann::json event;
+event["type"] = 100;
+event["data"]["key1"] = 1234;
+event["data"]["key2"] = 2345;
+event["data"]["key3"] = 3456;
+publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, seconds_ttl);
+
+// Data Update Message
+//   1) Unique ID
+//   2) Metadata
+//   3) Value
+nlohmann::json update;
+update["unique_id"] = 7694093;
+update["code1"] = 10;
+update["code2"] = 20;
+update["code3"] = 30;
+update["code4"] = 40;
+update["value"] = "Value";
+publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, update, seconds_ttl);
+```
+
+### Subscribe
+```C++
+ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t> subscriber("example.conf");
+
+std::map<int64_t, int64_t> producer_sequence_map; // producer => max sequence number seen
+...
+// Run this in a processing thread loop, updating "time_slot" as time moves on.
+
+// Retrieve messages for a given time slot
+auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
+for(auto& pair : results.results){
+  int64_t producer = std::get<3>(pair.second);
+  int64_t sequence = std::get<4>(pair.second);
+  int64_t time = std::get<5>(pair.second).time_and_version;
+  nlohmann::json payload = pair.first;
+
+  ... filter out messages we've already seen, sort the results, and store them ...
+}
+
+// Notify observers about the messages received.
+this->notify();
 ```
