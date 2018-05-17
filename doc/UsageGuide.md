@@ -273,8 +273,8 @@ To make things simpler, the data is packaged in JSON.
 #include "nlohmann/json.hpp"
 #include "ValuStor.hpp"
 ...
-static long event_id = 1; // sequential ID
-static long update_id = 1; // sequential ID
+static long event_id = 1; // globally sequential ID (by producer)
+static long update_id = 1; // globally sequential ID (by producer)
 
 ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t, int64_t, int64_t, CassUuid> publisher({
     {"table", "messaging.messages"},
@@ -294,7 +294,7 @@ event["type"] = 100;
 event["data"]["key1"] = 1234;
 event["data"]["key2"] = 2345;
 event["data"]["key3"] = 3456;
-publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, seconds_ttl);
+publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, event, seconds_ttl);
 
 // Data Update Message
 //   1) Unique ID
@@ -314,21 +314,93 @@ publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, 
 ```C++
 ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t> subscriber("example.conf");
 
-std::map<int64_t, int64_t> producer_sequence_map; // producer => max sequence number seen
 ...
-// Run this in a processing thread loop, updating "time_slot" as time moves on.
 
-// Retrieve messages for a given time slot
-auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
-for(auto& pair : results.results){
-  int64_t producer = std::get<3>(pair.second);
-  int64_t sequence = std::get<4>(pair.second);
-  int64_t time = std::get<5>(pair.second).time_and_version;
-  nlohmann::json payload = pair.first;
+struct UpdateRecord{
+  uint64_t producer;
+  uint64_t sequence;
+  uint64_t time;
+  nlohmann::json payload;
+};
+struct RecordSort{
+  bool operator() (const UpdateRecord& lhs, const UpdateRecord& rhs) const{
+    return lhs.producer == rhs.producer ? lhs.sequence < rhs.sequence :
+           lhs.time == rhs.time         ? lhs.producer < rhs.producer :
+                                          lhs.time < rhs.time;
+  }
+} RecordSorter;
 
-  ... filter out messages we've already seen, sort the results, and store them ...
+
+...
+
+// Producer => { Max Sequence #, Time Slot }
+std::map<int64_t, std::pair<int64_t, int64_t>> producer_meta;
+
+// Run this in a processing thread loop
+while(true){
+  std::vector<UpdateRecord> records;  
+
+  //
+  // Retrieve messages.
+  // Remove any that we've already seen.
+  //
+  int64_t curent_time_slot = time(nullptr) / 300; // One time slot every 5 minutes
+  for(int64_t time_slot = (current_time_slot - 1); time_slot <= curent_time_slot; time_slot++){
+    //
+    // Always process the current time slot
+    // Process the previous time slot(s) if we are waiting on a producer.
+    //
+    bool is_slot_found = false;
+    if(time_slot == curent_time_slot){
+      is_slot_found = true;
+    }
+    else{
+      for(auto& pair : producer_meta){
+        if(pair.second.second <= time_slot){
+          is_slot_found = true;
+          break;
+        }
+      }
+    }
+    if(is_slot_found){
+      auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
+      for(auto& pair : results.results){
+        int64_t producer = std::get<3>(pair.second);
+        int64_t sequence = std::get<4>(pair.second);
+        if( producer_meta.count(producer) == 0 or
+            sequence > producer_meta.at(producer).first ){
+          records.push_back({producer, sequence, std::get<5>(pair.second).time_and_version, pair.first});
+        }
+      }
+    }
+  }
+
+  std::sort(std::begin(records), std::end(records), RecordSorter);
+
+  //
+  // Now that we have all the records that we have not seen sorted by producer,
+  // we must now look for gaps.
+  //
+  std::vector<UpdateRecord> updates;
+  for(auto& record : records){
+    int64_t sequence = producer_meta[record.producer].first;
+    if(sequence == 0){
+      sequence = std::get<0>(pair.second.front());
+    }
+    if(sequence == 0 or ((sequence + 1) == record.sequence) ){
+      producer_meta[record.producer].first = record.sequence;
+      updates.push_back(record);
+    }
+    else{
+      break;
+    }
+  }
+
+  //
+  // Send the updates
+  // Notify observers about the messages received.
+  //
+  this->notify();
+
 }
-
-// Notify observers about the messages received.
-this->notify();
 ```
