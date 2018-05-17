@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.0-rc3
+version 1.0.1
 
 Licensed under the MIT License
 
@@ -236,6 +236,7 @@ class ValuStor
         {"username", "username"},
         {"password", "password"},
         {"hosts", "127.0.0.1"},
+        {"port", "9042"},
         {"read_consistencies", "LOCAL_QUORUM, LOCAL_ONE, ONE"},
         {"write_consistencies", "LOCAL_ONE, ONE, ANY"},
         {"client_io_threads", "2"},
@@ -374,6 +375,7 @@ class ValuStor
         cass_cluster_set_credentials(this->cluster, username.c_str(), password.c_str());
       }
       cass_cluster_set_contact_points(this->cluster, config.at("hosts").c_str());
+      cass_cluster_set_port(this->cluster, str_to_int(config.at("port"), 9042));
       cass_cluster_set_num_threads_io(this->cluster, str_to_int(config.at("client_io_threads"), 2));
       cass_cluster_set_queue_size_io(this->cluster, str_to_int(config.at("client_queue_size"), 8192));
       cass_cluster_set_core_connections_per_host(this->cluster, str_to_int(config.at("client_server_connects_per_thread"), 1));
