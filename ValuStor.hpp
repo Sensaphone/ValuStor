@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.1
+version 1.0.2
 
 Licensed under the MIT License
 
@@ -469,92 +469,94 @@ class ValuStor
       ///
       auto initialize = [&](void){
         this->session = cass_session_new();
-        CassFuture* connect_future = cass_session_connect(this->session, cluster);
-        if(connect_future != nullptr){
-          cass_future_wait_timed(connect_future, 4000000L); // Wait up to 4s
-          if (cass_future_error_code(connect_future) == CASS_OK) {
-            //
-            // Build the INSERT prepared statement
-            //
-            {
-              std::string statement = "INSERT INTO " + this->config.at("table") + " (" + this->config.at("key_field") +
-                                      ", " + this->config.at("value_field") + ") VALUES (";
-              for(size_t ndx = 0; ndx < keys.size(); ndx++){
-                statement += "?,";
-              }
-              statement += "?) USING TTL ?";
-
-              CassFuture* future = cass_session_prepare(this->session, statement.c_str());
-              if(future != nullptr){
-                cass_future_wait_timed(future, 2000000L); // Wait up to 2s
-                if (cass_future_error_code(future) == CASS_OK) {
-                  this->prepared_insert = cass_future_get_prepared(future);
+        if(this->session != nullptr){
+          CassFuture* connect_future = cass_session_connect(this->session, cluster);
+          if(connect_future != nullptr){
+            cass_future_wait_timed(connect_future, 4000000L); // Wait up to 4s
+            if (cass_future_error_code(connect_future) == CASS_OK) {
+              //
+              // Build the INSERT prepared statement
+              //
+              {
+                std::string statement = "INSERT INTO " + this->config.at("table") + " (" + this->config.at("key_field") +
+                                        ", " + this->config.at("value_field") + ") VALUES (";
+                for(size_t ndx = 0; ndx < keys.size(); ndx++){
+                  statement += "?,";
                 }
-                else{
-                  //
-                  // Error: Unable to prepare insert statement
-                  //
-                }
-                cass_future_free(future);
-              }
-            }
-
-            //
-            // Build the SELECT prepared statements
-            //
-            {
-              for(size_t total = 1; total <= keys.size(); total++){
-                // total == # of keys to move to the WHERE clause.
-                std::string statement = "SELECT " + this->config.at("value_field");
-                for(size_t value = total; value < keys.size(); value++){
-                  statement += "," + keys.at(value);
-                }
-                statement += " FROM " + this->config.at("table") + " WHERE ";
-                for(size_t key = 0; key < total; key++){
-                  statement += (key != 0 ? " AND " : "") + keys.at(key) + "=?";
-                }
+                statement += "?) USING TTL ?";
 
                 CassFuture* future = cass_session_prepare(this->session, statement.c_str());
                 if(future != nullptr){
                   cass_future_wait_timed(future, 2000000L); // Wait up to 2s
                   if (cass_future_error_code(future) == CASS_OK) {
-                    this->prepared_selects[total] = cass_future_get_prepared(future);
+                    this->prepared_insert = cass_future_get_prepared(future);
                   }
                   else{
                     //
-                    // Error: Unable to prepare select statement
+                    // Error: Unable to prepare insert statement
                     //
                   }
                   cass_future_free(future);
                 }
               }
-            }
-          }
-          else{
-            //
-            // Error: Unable to connect
-            //
-          }
-          cass_future_free(connect_future);
 
-          if(this->session != nullptr and this->prepared_insert != nullptr and this->prepared_selects.size() != 0){
-            this->is_initialized = true;
-          }
-          else{
-            if(this->prepared_insert != nullptr){
-              cass_prepared_free(this->prepared_insert);
-              this->prepared_insert = nullptr;
-            }
-            for(const auto& pair : this->prepared_selects){
-              if(pair.second != nullptr){
-                cass_prepared_free(pair.second);
+              //
+              // Build the SELECT prepared statements
+              //
+              {
+                for(size_t total = 1; total <= keys.size(); total++){
+                  // total == # of keys to move to the WHERE clause.
+                  std::string statement = "SELECT " + this->config.at("value_field");
+                  for(size_t value = total; value < keys.size(); value++){
+                    statement += "," + keys.at(value);
+                  }
+                  statement += " FROM " + this->config.at("table") + " WHERE ";
+                  for(size_t key = 0; key < total; key++){
+                    statement += (key != 0 ? " AND " : "") + keys.at(key) + "=?";
+                  }
+
+                  CassFuture* future = cass_session_prepare(this->session, statement.c_str());
+                  if(future != nullptr){
+                    cass_future_wait_timed(future, 2000000L); // Wait up to 2s
+                    if (cass_future_error_code(future) == CASS_OK) {
+                      this->prepared_selects[total] = cass_future_get_prepared(future);
+                    }
+                    else{
+                      //
+                      // Error: Unable to prepare select statement
+                      //
+                    }
+                    cass_future_free(future);
+                  }
+                }
               }
             }
-            this->prepared_selects.clear();
-            if(this->session != nullptr){
-              cass_session_free(this->session);
-              this->session = nullptr;
+            else{
+              //
+              // Error: Unable to connect
+              //
             }
+            cass_future_free(connect_future);
+
+            if(this->session != nullptr and this->prepared_insert != nullptr and this->prepared_selects.size() != 0){
+              this->is_initialized = true;
+            }
+            else{
+              if(this->prepared_insert != nullptr){
+                cass_prepared_free(this->prepared_insert);
+                this->prepared_insert = nullptr;
+              }
+              for(const auto& pair : this->prepared_selects){
+                if(pair.second != nullptr){
+                  cass_prepared_free(pair.second);
+                }
+              }
+              this->prepared_selects.clear();
+            }
+          }
+          if(not this->is_initialized and this->session != nullptr){
+            cass_session_free(this->session);
+            this->session = nullptr;
           }
         }        
       };
@@ -564,7 +566,7 @@ class ValuStor
       ///
       /// @brief          The backlog thread handles initializing the connection and manages the backlog queue.
       ///
-      this->backlog_thread = std::thread([&](void){
+      this->backlog_thread = std::thread([&, initialize](void){
         //
         // Setup the pointers back to the master thread.
         // The backlog thread will never close until the master thread tells it to close.
