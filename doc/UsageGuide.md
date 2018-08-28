@@ -273,10 +273,10 @@ To make things simpler, the data is packaged in JSON.
 #include "nlohmann/json.hpp"
 #include "ValuStor.hpp"
 ...
-static long event_id = 1; // globally sequential ID (by producer)
-static long update_id = 1; // globally sequential ID (by producer)
+static long event_id = 0; // globally sequential ID (by producer)
+static long update_id = 0; // globally sequential ID (by producer)
 
-ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t, int64_t, int64_t, CassUuid> publisher({
+ValuStor::ValuStor<nlohmann::json, std::string, std::string, int64_t, int64_t, int64_t, CassUuid> publisher({
     {"table", "messaging.messages"},
     {"key_field", "name, topic, slot, producer, sequence, record_time"},
     {"value_field", "data"},
@@ -312,13 +312,11 @@ publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, 
 
 ### Subscribe
 ```C++
-ValuStor::ValuStor<nlohmann::json, std::string, int64_t, int64_t> subscriber("example.conf");
-
-...
-
 struct UpdateRecord{
-  uint64_t producer;
-  uint64_t sequence;
+  std::string name;
+  std::string topic;
+  int64_t producer;
+  int64_t sequence;
   uint64_t time;
   nlohmann::json payload;
 };
@@ -330,9 +328,16 @@ struct RecordSort{
   }
 } RecordSorter;
 
-
 ...
 
+ValuStor::ValuStor<nlohmann::json, std::string, std::string, int64_t, int64_t, int64_t, CassUuid> publisher({
+    {"table", "messaging.messages"},
+    {"key_field", "name, topic, slot, producer, sequence, record_time"},
+    {"value_field", "data"},
+    {"hosts", "host1,host2,host3"}
+  });
+
+...
 // Producer => { Max Sequence #, Time Slot }
 std::map<int64_t, std::pair<int64_t, int64_t>> producer_meta;
 
@@ -344,19 +349,21 @@ while(true){
   // Retrieve messages.
   // Remove any that we've already seen.
   //
-  int64_t curent_time_slot = time(nullptr) / 300; // One time slot every 5 minutes
-  for(int64_t time_slot = (current_time_slot - 1); time_slot <= curent_time_slot; time_slot++){
+  int64_t current_time_slot = time(nullptr) / 300; // One time slot every 5 minutes
+  int64_t min_time_slot = (current_time_slot - 1);
+  for(int64_t time_slot = min_time_slot; time_slot <= current_time_slot; time_slot++){
     //
     // Always process the current time slot
     // Process the previous time slot(s) if we are waiting on a producer.
     //
     bool is_slot_found = false;
-    if(time_slot == curent_time_slot){
+    if(time_slot == current_time_slot){
       is_slot_found = true;
     }
     else{
       for(auto& pair : producer_meta){
-        if(pair.second.second <= time_slot){
+        if(pair.second.second <= time_slot and
+           pair.second.second >= min_time_slot){
           is_slot_found = true;
           break;
         }
@@ -365,13 +372,23 @@ while(true){
     if(is_slot_found){
       auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
       for(auto& pair : results.results){
-        int64_t producer = std::get<3>(pair.second);
-        int64_t sequence = std::get<4>(pair.second);
+        std::string name  = std::get<0>(pair.second);
+        std::string topic = std::get<1>(pair.second);
+        int64_t producer  = std::get<3>(pair.second);
+        int64_t sequence  = std::get<4>(pair.second);
         if( producer_meta.count(producer) == 0 or
             sequence > producer_meta.at(producer).first ){
-          records.push_back({producer, sequence, std::get<5>(pair.second).time_and_version, pair.first});
+          records.push_back({name, topic, producer, sequence, std::get<5>(pair.second).time_and_version, pair.first});
         }
       }
+    }
+  }
+  for(auto& pair : producer_meta){
+    if(pair.second.second < min_time_slot){
+      //
+      // If a producer has fallen silent for too many time slots, clear the sequence number.
+      //
+      pair.second.first = 0;
     }
   }
 
@@ -384,10 +401,7 @@ while(true){
   std::vector<UpdateRecord> updates;
   for(auto& record : records){
     int64_t sequence = producer_meta[record.producer].first;
-    if(sequence == 0){
-      sequence = std::get<0>(pair.second.front());
-    }
-    if(sequence == 0 or ((sequence + 1) == record.sequence) ){
+    if(sequence == 0 or record.sequence == 0 or ((sequence + 1) == record.sequence) ){
       producer_meta[record.producer].first = record.sequence;
       updates.push_back(record);
     }
@@ -399,6 +413,7 @@ while(true){
   //
   // Send the updates
   // Notify observers about the messages received.
+  // Potentially filter according to the UpdateMessage metadata and observer registrations.
   //
   this->notify();
 
