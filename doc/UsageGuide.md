@@ -251,6 +251,32 @@ subscription implemented in the application using the
 [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) and having the observable poll 
 the broker (the backend database) for updates. This increases latency somewhat.
 
+### Description
+
+In this example, every producer can produce messages for different topics.
+Each topic is given its own sequence number, so if a producer produces messages for other topics,
+they get their own unique sequential sequence numbers.
+
+The subscriber is subscribing to a particular topic.
+It pulls down all the data on that topic from every producer.
+It sorts every record by the time it is produced, and it stops if
+any gaps are detected in the sequence number due to out-of-order delivery or processing delays.
+The sequence number ensures that messages for any given producer cannot be consumed out of order.
+Messages from different producers are ordered by their UUID, but can still be processed slightly
+out of time order from other producers by the delay it takes between the time a record is generated
+and the time that record is recorded in the database. Therefore, messages from different producers 
+should, ideally, not be dependent on one another.
+
+Messages are intended to be consumed almost immediately, but we use a 5 minute error window.
+Messages automatically delete after one hour.
+
+This example covers a multi-datacenter scenario.
+Data within a data center uses a globally unique ID to ensure synchronous in-order processing,
+but data across data centers would only be asynchronously processed.
+NOTE: Multiple producers with the same producer ID can be used within a single data center,
+as long as they use a common synchronous sequence number source, such as an auto increment
+field of a relational database.
+
 ### Overview
 
 First we must create a table used to store our messages:
