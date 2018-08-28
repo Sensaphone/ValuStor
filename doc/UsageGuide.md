@@ -273,8 +273,7 @@ To make things simpler, the data is packaged in JSON.
 #include "nlohmann/json.hpp"
 #include "ValuStor.hpp"
 ...
-static long event_id = 0; // globally sequential ID (by producer)
-static long update_id = 0; // globally sequential ID (by producer)
+static long seq_num = 0; // globally sequential ID (by producer)
 
 ValuStor::ValuStor<nlohmann::json, std::string, std::string, int64_t, int64_t, int64_t, CassUuid> publisher({
     {"table", "messaging.messages"},
@@ -294,7 +293,7 @@ event["type"] = 100;
 event["data"]["key1"] = 1234;
 event["data"]["key2"] = 2345;
 event["data"]["key3"] = 3456;
-publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, event, seconds_ttl);
+publisher.store("messages", "event", time_slot, 9999, seq_num++, CassUuid{}, event, seconds_ttl);
 
 // Data Update Message
 //   1) Unique ID
@@ -307,7 +306,7 @@ update["code2"] = 20;
 update["code3"] = 30;
 update["code4"] = 40;
 update["value"] = "Value";
-publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, update, seconds_ttl);
+publisher.store("messages", "update", time_slot, 9999, seq_num++, CassUuid{}, update, seconds_ttl);
 ```
 
 ### Subscribe
