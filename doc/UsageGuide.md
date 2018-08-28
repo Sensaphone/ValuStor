@@ -3,6 +3,7 @@
 This usage guide contains some example uses for ValuStor.
 - [Memcached Replacement](#memcached-replacement)
 - [JSON Document Storage](#json-document-storage)
+- [Distributed Messaging](#distributed-messaging) (Publisher/Subscriber)
 
 ## Memcached Replacement
 This guide shows how to replace the C/C++ [libmemcached](http://docs.libmemcached.org/index.html) library with ValuStor.
@@ -134,6 +135,7 @@ if(result){
 NOTE: ValuStor does not support [atomicity](/README.md#atomicity) across multiple reads and/or writes, so there are no strict equivalents for
 `memcached_replace()`, `memcached_add()`, `memcached_prepend()`, `memcached_append()` and `memcached_cas()`.
 
+
 ## JSON Document Storage
 ValuStor can be used as a JSON document store.
 Follow the [integration instructions](https://github.com/Sensaphone/ValuStor#json) to enable JSON for Modern C++ support in ValuStor.
@@ -219,5 +221,227 @@ for(auto& result_pair : results.results){
   cass_uint64_t timestamp = cass_uuid_timestamp(revision);
   nlohmann::json doc = result_pair.first;
   ...
+}
+```
+
+
+## Distributed Messaging
+ValuStor is not a a full-featured message queue system. Since it does not enforce a FIFO ordering,
+it can't directly be used to implement distributed worker queues. It can, however, be used for
+[publisher/subscriber applications](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern) in
+non-direct fanout or topic mode. It the same advantages of a traditional pub/sub system:
+loose (asynchronous) coupling between the publishers and subscribers and high scalability.
+It also adds persistence and encryption/authentication.
+
+One advantage of this implementation is that it is, like ValuStor itself, geared towards 
+maximum availability. It has the optional ability to sacrifice some consistency for availability.
+Messages can be processed in-order during normal operation but when the broker is in degraded state
+subscribers can still process them out-of-order. A traditional pub/sub system would lose data or
+become unavailable. This is required for applications that would rather have partial information
+than no information.
+
+Another problem with a traditional pub/sub system is that the ordering of the messages is determined by the
+ordering in the queue. This may not be desirable. For example, suppose two events are generated 10ms apart by
+two different producers. Due to processing delays, these may be inserted into the queue out of their created
+order. This example resolves that problem by using a combination of sequentially unique IDs and UUID timestamps.
+The subscriber code in the example automatically detects out-of-order events and reorders them.
+
+NOTE: This example implemention actually simulates the system-managed "subscription" by having the 
+subscription implemented in the application using the
+[observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) and having the observable poll 
+the broker (the backend database) for updates. This increases latency somewhat.
+
+### Description
+
+In this example, every producer can produce messages for different topics.
+Each topic is given its own sequence number, so if a producer produces messages for other topics,
+they get their own unique sequential sequence numbers.
+
+The subscriber is subscribing to a particular topic.
+It pulls down all the data on that topic from every producer.
+It sorts every record by the time it is produced, and it stops if
+any gaps are detected in the sequence number due to out-of-order delivery or processing delays.
+The sequence number ensures that messages for any given producer cannot be consumed out of order.
+Messages from different producers are ordered by their UUID, but can still be processed slightly
+out of time order from other producers by the delay it takes between the time a record is generated
+and the time that record is recorded in the database. Therefore, messages from different producers 
+should, ideally, not be dependent on one another.
+
+Messages are intended to be consumed almost immediately, but we use a 5 minute error window.
+Messages automatically delete after one hour.
+
+This example covers a multi-datacenter scenario.
+Data within a data center uses a globally unique ID to ensure synchronous in-order processing,
+but data across data centers would only be asynchronously processed.
+NOTE: Multiple producers with the same producer ID can be used within a single data center,
+as long as they use a common synchronous sequence number source, such as an auto increment
+field of a relational database.
+
+### Overview
+
+First we must create a table used to store our messages:
+```
+CREATE TABLE messaging.messages (name text,
+                                 topic text,
+                                 slot bigint,
+                                 producer bigint,
+                                 sequence bigint,
+                                 record_time uuid,
+                                 data text,
+                                 PRIMARY KEY ((name, topic, slot), producer, sequence));
+```
+
+To make things simpler, the data is packaged in JSON.
+
+### Publish
+
+```C++
+#include "nlohmann/json.hpp"
+#include "ValuStor.hpp"
+...
+static long event_id = 0; // globally sequential ID (by producer)
+static long update_id = 0; // globally sequential ID (by producer)
+
+ValuStor::ValuStor<nlohmann::json, std::string, std::string, int64_t, int64_t, int64_t, CassUuid> publisher({
+    {"table", "messaging.messages"},
+    {"key_field", "name, topic, slot, producer, sequence, record_time"},
+    {"value_field", "data"},
+    {"hosts", "host1,host2,host3"}
+  });
+
+int64_t time_slot = time(nullptr) / 300; // One time slot every 5 minutes
+uint32_t seconds_ttl = 60 * 60; // Messages have one hour persistence before expiring.
+
+// Event Message
+//   1) Event Type
+//   2) Event Data (KVP)
+nlohmann::json event;
+event["type"] = 100;
+event["data"]["key1"] = 1234;
+event["data"]["key2"] = 2345;
+event["data"]["key3"] = 3456;
+publisher.store("messages", "event", time_slot, 9999, event_id++, CassUuid{}, event, seconds_ttl);
+
+// Data Update Message
+//   1) Unique ID
+//   2) Metadata
+//   3) Value
+nlohmann::json update;
+update["unique_id"] = 7694093;
+update["code1"] = 10;
+update["code2"] = 20;
+update["code3"] = 30;
+update["code4"] = 40;
+update["value"] = "Value";
+publisher.store("messages", "update", time_slot, 9999, update_id++, CassUuid{}, update, seconds_ttl);
+```
+
+### Subscribe
+```C++
+struct UpdateRecord{
+  std::string name;
+  std::string topic;
+  int64_t producer;
+  int64_t sequence;
+  uint64_t time;
+  nlohmann::json payload;
+};
+struct RecordSort{
+  bool operator() (const UpdateRecord& lhs, const UpdateRecord& rhs) const{
+    return lhs.producer == rhs.producer ? lhs.sequence < rhs.sequence :
+           lhs.time == rhs.time         ? lhs.producer < rhs.producer :
+                                          lhs.time < rhs.time;
+  }
+} RecordSorter;
+
+...
+
+ValuStor::ValuStor<nlohmann::json, std::string, std::string, int64_t, int64_t, int64_t, CassUuid> publisher({
+    {"table", "messaging.messages"},
+    {"key_field", "name, topic, slot, producer, sequence, record_time"},
+    {"value_field", "data"},
+    {"hosts", "host1,host2,host3"}
+  });
+
+...
+// Producer => { Max Sequence #, Time Slot }
+std::map<int64_t, std::pair<int64_t, int64_t>> producer_meta;
+
+// Run this in a processing thread loop
+while(true){
+  std::vector<UpdateRecord> records;  
+
+  //
+  // Retrieve messages.
+  // Remove any that we've already seen.
+  //
+  int64_t current_time_slot = time(nullptr) / 300; // One time slot every 5 minutes
+  int64_t min_time_slot = (current_time_slot - 1);
+  for(int64_t time_slot = min_time_slot; time_slot <= current_time_slot; time_slot++){
+    //
+    // Always process the current time slot
+    // Process the previous time slot(s) if we are waiting on a producer.
+    //
+    bool is_slot_found = false;
+    if(time_slot == current_time_slot){
+      is_slot_found = true;
+    }
+    else{
+      for(auto& pair : producer_meta){
+        if(pair.second.second <= time_slot and
+           pair.second.second >= min_time_slot){
+          is_slot_found = true;
+          break;
+        }
+      }
+    }
+    if(is_slot_found){
+      auto results = subscriber.retrieve("messages", "event", time_slot, -1, -1, CassUuid{}, 3);
+      for(auto& pair : results.results){
+        std::string name  = std::get<0>(pair.second);
+        std::string topic = std::get<1>(pair.second);
+        int64_t producer  = std::get<3>(pair.second);
+        int64_t sequence  = std::get<4>(pair.second);
+        if( producer_meta.count(producer) == 0 or
+            sequence > producer_meta.at(producer).first ){
+          records.push_back({name, topic, producer, sequence, std::get<5>(pair.second).time_and_version, pair.first});
+        }
+      }
+    }
+  }
+  for(auto& pair : producer_meta){
+    if(pair.second.second < min_time_slot){
+      //
+      // If a producer has fallen silent for too many time slots, clear the sequence number.
+      //
+      pair.second.first = 0;
+    }
+  }
+
+  std::sort(std::begin(records), std::end(records), RecordSorter);
+
+  //
+  // Now that we have all the records that we have not seen sorted by producer,
+  // we must now look for gaps.
+  //
+  std::vector<UpdateRecord> updates;
+  for(auto& record : records){
+    int64_t sequence = producer_meta[record.producer].first;
+    if(sequence == 0 or record.sequence == 0 or ((sequence + 1) == record.sequence) ){
+      producer_meta[record.producer].first = record.sequence;
+      updates.push_back(record);
+    }
+    else{
+      break;
+    }
+  }
+
+  //
+  // Send the updates
+  // Notify observers about the messages received.
+  // Potentially filter according to the UpdateMessage metadata and observer registrations.
+  //
+  this->notify();
+
 }
 ```

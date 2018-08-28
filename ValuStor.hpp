@@ -1223,7 +1223,7 @@ class ValuStor
     #if defined(NLOHMANN_JSON_HPP)
     static CassError get(const CassValue* value, nlohmann::json* target){
       std::string json_as_str;
-      auto result = get(value, &json_as_str, size);
+      auto result = get(value, &json_as_str);
       *target = nlohmann::json::parse(json_as_str);
       return result;
     }
