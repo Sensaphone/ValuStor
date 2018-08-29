@@ -3,3 +3,13 @@ main
 test/tester
 test/test_gen
 test/test.cpp
+bindings/php7/valustor.so
+bindings/php7/valustor_wrap.o
+bindings/php7/ValuStorWrapper.o
+bindings/python2.7/_valustor.so
+bindings/python2.7/valustor_wrap.o
+bindings/python2.7/ValuStorWrapper.o
+bindings/python2.7/valustor.pyc
+bindings/perl5/valustor.so
+bindings/perl5/valustor_wrap.o
+bindings/perl5/ValuStorWrapper.o
