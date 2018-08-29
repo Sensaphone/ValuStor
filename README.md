@@ -12,6 +12,9 @@ It utilizes a [ScyllaDB](https://www.scylladb.com) database backend.
 
 See the [usage guide](doc/UsageGuide.md) for example applications.
 
+See the [language binding guide](bindings/LanguageBindings.md) for instructions on how to use ValuStor with other languages.
+Examples include PHP, Python, and Perl.
+
 ## Key Features
 - Single header-only implementation makes it easy to drop into C++ projects.
 - A optional [backlog](#backlog) queues data in the event that the database is temporarily inaccessible.
