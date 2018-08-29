@@ -20,8 +20,12 @@ extern zend_module_entry valustor_module_entry;
 # define PHP_VALUSTOR_API
 #endif
 
-ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_retrieve);
-ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_store);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_retrieve);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_store);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_close);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_retrieve);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_store);
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_close);
 PHP_MINIT_FUNCTION(valustor);
 
 #endif /* PHP_VALUSTOR_H */

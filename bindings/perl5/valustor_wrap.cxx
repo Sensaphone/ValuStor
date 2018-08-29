@@ -1530,10 +1530,11 @@ SWIG_Perl_SetModule(swig_module_info *module) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_ValuStorIntWrapper swig_types[0]
-#define SWIGTYPE_p_char swig_types[1]
-static swig_type_info *swig_types[3];
-static swig_module_info swig_module = {swig_types, 2, 0, 0, 0, 0};
+#define SWIGTYPE_p_ValuStorNativeWrapper swig_types[0]
+#define SWIGTYPE_p_ValuStorWrapper swig_types[1]
+#define SWIGTYPE_p_char swig_types[2]
+static swig_type_info *swig_types[4];
+static swig_module_info swig_module = {swig_types, 3, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -1573,6 +1574,117 @@ SWIGEXPORT void SWIG_init (CV *cv, CPerlObj *);
 
 
 #include <string>
+
+
+SWIGINTERN swig_type_info*
+SWIG_pchar_descriptor(void)
+{
+  static int init = 0;
+  static swig_type_info* info = 0;
+  if (!init) {
+    info = SWIG_TypeQuery("_p_char");
+    init = 1;
+  }
+  return info;
+}
+
+
+SWIGINTERN int
+SWIG_AsCharPtrAndSize(SV *obj, char** cptr, size_t* psize, int *alloc)
+{
+  if (SvMAGICAL(obj)) {
+     SV *tmp = sv_newmortal();
+     SvSetSV(tmp, obj);
+     obj = tmp;
+  }
+  if (SvPOK(obj)) {
+    STRLEN len = 0;
+    char *cstr = SvPV(obj, len); 
+    size_t size = len + 1;
+    if (cptr)  {
+      if (alloc) {
+	if (*alloc == SWIG_NEWOBJ) {
+	  *cptr = reinterpret_cast< char* >(memcpy(new char[size], cstr, sizeof(char)*(size)));
+	} else {
+	  *cptr = cstr;
+	  *alloc = SWIG_OLDOBJ;
+	}
+      }
+    }
+    if (psize) *psize = size;
+    return SWIG_OK;
+  } else {
+    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
+    if (pchar_descriptor) {
+      char* vptr = 0; 
+      if (SWIG_ConvertPtr(obj, (void**)&vptr, pchar_descriptor, 0) == SWIG_OK) {
+	if (cptr) *cptr = vptr;
+	if (psize) *psize = vptr ? (strlen(vptr) + 1) : 0;
+	if (alloc) *alloc = SWIG_OLDOBJ;
+	return SWIG_OK;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+SWIGINTERN int
+SWIG_AsPtr_std_string SWIG_PERL_DECL_ARGS_2(SV * obj, std::string **val) 
+{
+  char* buf = 0 ; size_t size = 0; int alloc = SWIG_OLDOBJ;
+  if (SWIG_IsOK((SWIG_AsCharPtrAndSize(obj, &buf, &size, &alloc)))) {
+    if (buf) {
+      if (val) *val = new std::string(buf, size - 1);
+      if (alloc == SWIG_NEWOBJ) delete[] buf;
+      return SWIG_NEWOBJ;
+    } else {
+      if (val) *val = 0;
+      return SWIG_OLDOBJ;
+    }
+  } else {
+    static int init = 0;
+    static swig_type_info* descriptor = 0;
+    if (!init) {
+      descriptor = SWIG_TypeQuery("std::string" " *");
+      init = 1;
+    }
+    if (descriptor) {
+      std::string *vptr;
+      int res = SWIG_ConvertPtr(obj, (void**)&vptr, descriptor, 0);
+      if (SWIG_IsOK(res) && val) *val = vptr;
+      return res;
+    }
+  }
+  return SWIG_ERROR;
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+{
+  SV *obj = sv_newmortal();
+  if (carray) {
+    sv_setpvn(obj, carray, size);
+  } else {
+    sv_setsv(obj, &PL_sv_undef);
+  }
+  return obj;
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_From_std_string  SWIG_PERL_DECL_ARGS_1(const std::string& s)
+{
+  return SWIG_FromCharPtrAndSize(s.data(), s.size());
+}
+
+
+SWIGINTERNINLINE SV *
+SWIG_From_bool  SWIG_PERL_DECL_ARGS_1(bool value)
+{
+  return boolSV(value);
+}
 
 
 #include <limits.h>
@@ -1722,13 +1834,6 @@ SWIG_From_long  SWIG_PERL_DECL_ARGS_1(long value)
   return sv_2mortal(sv);
 }
 
-
-SWIGINTERNINLINE SV *
-SWIG_From_bool  SWIG_PERL_DECL_ARGS_1(bool value)
-{
-  return boolSV(value);
-}
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -1758,25 +1863,27 @@ SWIGCLASS_STATIC int swig_magic_readonly(pTHX_ SV *SWIGUNUSEDPARM(sv), MAGIC *SW
 #ifdef __cplusplus
 extern "C" {
 #endif
-XS(_wrap_ValuStorIntWrapper_retrieve) {
+XS(_wrap_ValuStorWrapper_retrieve) {
   {
-    long arg1 ;
-    long val1 ;
-    int ecode1 = 0 ;
+    std::string arg1 ;
     int argvi = 0;
-    long result;
+    std::string result;
     dXSARGS;
     
     if ((items < 1) || (items > 1)) {
-      SWIG_croak("Usage: ValuStorIntWrapper_retrieve(key);");
+      SWIG_croak("Usage: ValuStorWrapper_retrieve(key);");
     }
-    ecode1 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(0), &val1);
-    if (!SWIG_IsOK(ecode1)) {
-      SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorIntWrapper_retrieve" "', argument " "1"" of type '" "long""'");
-    } 
-    arg1 = static_cast< long >(val1);
-    result = (long)ValuStorIntWrapper::retrieve(arg1);
-    ST(argvi) = SWIG_From_long  SWIG_PERL_CALL_ARGS_1(static_cast< long >(result)); argvi++ ;
+    {
+      std::string *ptr = (std::string *)0;
+      int res = SWIG_AsPtr_std_string SWIG_PERL_CALL_ARGS_2(ST(0), &ptr);
+      if (!SWIG_IsOK(res) || !ptr) {
+        SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_retrieve" "', argument " "1"" of type '" "std::string""'"); 
+      }
+      arg1 = *ptr;
+      if (SWIG_IsNewObj(res)) delete ptr;
+    }
+    result = ValuStorWrapper::retrieve(arg1);
+    ST(argvi) = SWIG_From_std_string  SWIG_PERL_CALL_ARGS_1(static_cast< std::string >(result)); argvi++ ;
     
     XSRETURN(argvi);
   fail:
@@ -1786,32 +1893,36 @@ XS(_wrap_ValuStorIntWrapper_retrieve) {
 }
 
 
-XS(_wrap_ValuStorIntWrapper_store) {
+XS(_wrap_ValuStorWrapper_store) {
   {
-    long arg1 ;
-    long arg2 ;
-    long val1 ;
-    int ecode1 = 0 ;
-    long val2 ;
-    int ecode2 = 0 ;
+    std::string arg1 ;
+    std::string arg2 ;
     int argvi = 0;
     bool result;
     dXSARGS;
     
     if ((items < 2) || (items > 2)) {
-      SWIG_croak("Usage: ValuStorIntWrapper_store(key,value);");
+      SWIG_croak("Usage: ValuStorWrapper_store(key,value);");
     }
-    ecode1 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(0), &val1);
-    if (!SWIG_IsOK(ecode1)) {
-      SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorIntWrapper_store" "', argument " "1"" of type '" "long""'");
-    } 
-    arg1 = static_cast< long >(val1);
-    ecode2 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(1), &val2);
-    if (!SWIG_IsOK(ecode2)) {
-      SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "ValuStorIntWrapper_store" "', argument " "2"" of type '" "long""'");
-    } 
-    arg2 = static_cast< long >(val2);
-    result = (bool)ValuStorIntWrapper::store(arg1,arg2);
+    {
+      std::string *ptr = (std::string *)0;
+      int res = SWIG_AsPtr_std_string SWIG_PERL_CALL_ARGS_2(ST(0), &ptr);
+      if (!SWIG_IsOK(res) || !ptr) {
+        SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_store" "', argument " "1"" of type '" "std::string""'"); 
+      }
+      arg1 = *ptr;
+      if (SWIG_IsNewObj(res)) delete ptr;
+    }
+    {
+      std::string *ptr = (std::string *)0;
+      int res = SWIG_AsPtr_std_string SWIG_PERL_CALL_ARGS_2(ST(1), &ptr);
+      if (!SWIG_IsOK(res) || !ptr) {
+        SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_store" "', argument " "2"" of type '" "std::string""'"); 
+      }
+      arg2 = *ptr;
+      if (SWIG_IsNewObj(res)) delete ptr;
+    }
+    result = (bool)ValuStorWrapper::store(arg1,arg2);
     ST(argvi) = SWIG_From_bool  SWIG_PERL_CALL_ARGS_1(static_cast< bool >(result)); argvi++ ;
     
     
@@ -1824,22 +1935,126 @@ XS(_wrap_ValuStorIntWrapper_store) {
 }
 
 
+XS(_wrap_ValuStorWrapper_close) {
+  {
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: ValuStorWrapper_close();");
+    }
+    ValuStorWrapper::close();
+    ST(argvi) = sv_newmortal();
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_ValuStorNativeWrapper_retrieve) {
+  {
+    long arg1 ;
+    long val1 ;
+    int ecode1 = 0 ;
+    int argvi = 0;
+    long result;
+    dXSARGS;
+    
+    if ((items < 1) || (items > 1)) {
+      SWIG_croak("Usage: ValuStorNativeWrapper_retrieve(key);");
+    }
+    ecode1 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(0), &val1);
+    if (!SWIG_IsOK(ecode1)) {
+      SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorNativeWrapper_retrieve" "', argument " "1"" of type '" "long""'");
+    } 
+    arg1 = static_cast< long >(val1);
+    result = (long)ValuStorNativeWrapper::retrieve(arg1);
+    ST(argvi) = SWIG_From_long  SWIG_PERL_CALL_ARGS_1(static_cast< long >(result)); argvi++ ;
+    
+    XSRETURN(argvi);
+  fail:
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_ValuStorNativeWrapper_store) {
+  {
+    long arg1 ;
+    long arg2 ;
+    long val1 ;
+    int ecode1 = 0 ;
+    long val2 ;
+    int ecode2 = 0 ;
+    int argvi = 0;
+    bool result;
+    dXSARGS;
+    
+    if ((items < 2) || (items > 2)) {
+      SWIG_croak("Usage: ValuStorNativeWrapper_store(key,value);");
+    }
+    ecode1 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(0), &val1);
+    if (!SWIG_IsOK(ecode1)) {
+      SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorNativeWrapper_store" "', argument " "1"" of type '" "long""'");
+    } 
+    arg1 = static_cast< long >(val1);
+    ecode2 = SWIG_AsVal_long SWIG_PERL_CALL_ARGS_2(ST(1), &val2);
+    if (!SWIG_IsOK(ecode2)) {
+      SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "ValuStorNativeWrapper_store" "', argument " "2"" of type '" "long""'");
+    } 
+    arg2 = static_cast< long >(val2);
+    result = (bool)ValuStorNativeWrapper::store(arg1,arg2);
+    ST(argvi) = SWIG_From_bool  SWIG_PERL_CALL_ARGS_1(static_cast< bool >(result)); argvi++ ;
+    
+    
+    XSRETURN(argvi);
+  fail:
+    
+    
+    SWIG_croak_null();
+  }
+}
+
+
+XS(_wrap_ValuStorNativeWrapper_close) {
+  {
+    int argvi = 0;
+    dXSARGS;
+    
+    if ((items < 0) || (items > 0)) {
+      SWIG_croak("Usage: ValuStorNativeWrapper_close();");
+    }
+    ValuStorNativeWrapper::close();
+    ST(argvi) = sv_newmortal();
+    XSRETURN(argvi);
+  fail:
+    SWIG_croak_null();
+  }
+}
+
+
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
-static swig_type_info _swigt__p_ValuStorIntWrapper = {"_p_ValuStorIntWrapper", "ValuStorIntWrapper *", 0, 0, (void*)"valustor::ValuStorIntWrapper", 0};
+static swig_type_info _swigt__p_ValuStorNativeWrapper = {"_p_ValuStorNativeWrapper", "ValuStorNativeWrapper *", 0, 0, (void*)"valustor::ValuStorNativeWrapper", 0};
+static swig_type_info _swigt__p_ValuStorWrapper = {"_p_ValuStorWrapper", "ValuStorWrapper *", 0, 0, (void*)"valustor::ValuStorWrapper", 0};
 static swig_type_info _swigt__p_char = {"_p_char", "char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
-  &_swigt__p_ValuStorIntWrapper,
+  &_swigt__p_ValuStorNativeWrapper,
+  &_swigt__p_ValuStorWrapper,
   &_swigt__p_char,
 };
 
-static swig_cast_info _swigc__p_ValuStorIntWrapper[] = {  {&_swigt__p_ValuStorIntWrapper, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_ValuStorNativeWrapper[] = {  {&_swigt__p_ValuStorNativeWrapper, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_ValuStorWrapper[] = {  {&_swigt__p_ValuStorWrapper, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
-  _swigc__p_ValuStorIntWrapper,
+  _swigc__p_ValuStorNativeWrapper,
+  _swigc__p_ValuStorWrapper,
   _swigc__p_char,
 };
 
@@ -1856,8 +2071,12 @@ static swig_variable_info swig_variables[] = {
 {0,0,0,0}
 };
 static swig_command_info swig_commands[] = {
-{"valustorc::ValuStorIntWrapper_retrieve", _wrap_ValuStorIntWrapper_retrieve},
-{"valustorc::ValuStorIntWrapper_store", _wrap_ValuStorIntWrapper_store},
+{"valustorc::ValuStorWrapper_retrieve", _wrap_ValuStorWrapper_retrieve},
+{"valustorc::ValuStorWrapper_store", _wrap_ValuStorWrapper_store},
+{"valustorc::ValuStorWrapper_close", _wrap_ValuStorWrapper_close},
+{"valustorc::ValuStorNativeWrapper_retrieve", _wrap_ValuStorNativeWrapper_retrieve},
+{"valustorc::ValuStorNativeWrapper_store", _wrap_ValuStorNativeWrapper_store},
+{"valustorc::ValuStorNativeWrapper_close", _wrap_ValuStorNativeWrapper_close},
 {0,0}
 };
 /* -----------------------------------------------------------------------------
@@ -2152,7 +2371,8 @@ XS(SWIG_init) {
     SvREADONLY_on(sv);
   }
   
-  SWIG_TypeClientData(SWIGTYPE_p_ValuStorIntWrapper, (void*) "valustor::ValuStorIntWrapper");
+  SWIG_TypeClientData(SWIGTYPE_p_ValuStorWrapper, (void*) "valustor::ValuStorWrapper");
+  SWIG_TypeClientData(SWIGTYPE_p_ValuStorNativeWrapper, (void*) "valustor::ValuStorNativeWrapper");
   ST(0) = &PL_sv_yes;
   XSRETURN(1);
 }

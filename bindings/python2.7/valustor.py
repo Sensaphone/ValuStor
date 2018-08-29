@@ -95,33 +95,77 @@ except __builtin__.Exception:
         pass
     _newclass = 0
 
-class ValuStorIntWrapper(_object):
+class ValuStorWrapper(_object):
     __swig_setmethods__ = {}
-    __setattr__ = lambda self, name, value: _swig_setattr(self, ValuStorIntWrapper, name, value)
+    __setattr__ = lambda self, name, value: _swig_setattr(self, ValuStorWrapper, name, value)
     __swig_getmethods__ = {}
-    __getattr__ = lambda self, name: _swig_getattr(self, ValuStorIntWrapper, name)
+    __getattr__ = lambda self, name: _swig_getattr(self, ValuStorWrapper, name)
 
     def __init__(self, *args, **kwargs):
         raise AttributeError("No constructor defined")
     __repr__ = _swig_repr
     if _newclass:
-        retrieve = staticmethod(_valustor.ValuStorIntWrapper_retrieve)
+        retrieve = staticmethod(_valustor.ValuStorWrapper_retrieve)
     else:
-        retrieve = _valustor.ValuStorIntWrapper_retrieve
+        retrieve = _valustor.ValuStorWrapper_retrieve
     if _newclass:
-        store = staticmethod(_valustor.ValuStorIntWrapper_store)
+        store = staticmethod(_valustor.ValuStorWrapper_store)
     else:
-        store = _valustor.ValuStorIntWrapper_store
-ValuStorIntWrapper_swigregister = _valustor.ValuStorIntWrapper_swigregister
-ValuStorIntWrapper_swigregister(ValuStorIntWrapper)
+        store = _valustor.ValuStorWrapper_store
+    if _newclass:
+        close = staticmethod(_valustor.ValuStorWrapper_close)
+    else:
+        close = _valustor.ValuStorWrapper_close
+ValuStorWrapper_swigregister = _valustor.ValuStorWrapper_swigregister
+ValuStorWrapper_swigregister(ValuStorWrapper)
 
-def ValuStorIntWrapper_retrieve(key):
-    return _valustor.ValuStorIntWrapper_retrieve(key)
-ValuStorIntWrapper_retrieve = _valustor.ValuStorIntWrapper_retrieve
+def ValuStorWrapper_retrieve(key):
+    return _valustor.ValuStorWrapper_retrieve(key)
+ValuStorWrapper_retrieve = _valustor.ValuStorWrapper_retrieve
 
-def ValuStorIntWrapper_store(key, value):
-    return _valustor.ValuStorIntWrapper_store(key, value)
-ValuStorIntWrapper_store = _valustor.ValuStorIntWrapper_store
+def ValuStorWrapper_store(key, value):
+    return _valustor.ValuStorWrapper_store(key, value)
+ValuStorWrapper_store = _valustor.ValuStorWrapper_store
+
+def ValuStorWrapper_close():
+    return _valustor.ValuStorWrapper_close()
+ValuStorWrapper_close = _valustor.ValuStorWrapper_close
+
+class ValuStorNativeWrapper(_object):
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, ValuStorNativeWrapper, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, ValuStorNativeWrapper, name)
+
+    def __init__(self, *args, **kwargs):
+        raise AttributeError("No constructor defined")
+    __repr__ = _swig_repr
+    if _newclass:
+        retrieve = staticmethod(_valustor.ValuStorNativeWrapper_retrieve)
+    else:
+        retrieve = _valustor.ValuStorNativeWrapper_retrieve
+    if _newclass:
+        store = staticmethod(_valustor.ValuStorNativeWrapper_store)
+    else:
+        store = _valustor.ValuStorNativeWrapper_store
+    if _newclass:
+        close = staticmethod(_valustor.ValuStorNativeWrapper_close)
+    else:
+        close = _valustor.ValuStorNativeWrapper_close
+ValuStorNativeWrapper_swigregister = _valustor.ValuStorNativeWrapper_swigregister
+ValuStorNativeWrapper_swigregister(ValuStorNativeWrapper)
+
+def ValuStorNativeWrapper_retrieve(key):
+    return _valustor.ValuStorNativeWrapper_retrieve(key)
+ValuStorNativeWrapper_retrieve = _valustor.ValuStorNativeWrapper_retrieve
+
+def ValuStorNativeWrapper_store(key, value):
+    return _valustor.ValuStorNativeWrapper_store(key, value)
+ValuStorNativeWrapper_store = _valustor.ValuStorNativeWrapper_store
+
+def ValuStorNativeWrapper_close():
+    return _valustor.ValuStorNativeWrapper_close()
+ValuStorNativeWrapper_close = _valustor.ValuStorNativeWrapper_close
 
 # This file is compatible with both classic and new-style classes.
 

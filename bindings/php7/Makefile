@@ -12,13 +12,13 @@ SOURCEFILES = $(HFILES) $(CPFILES)
 
 default: all
 
-valustor_wrap.cxx:
+valustor_wrap.cxx: ValuStorWrapper.hpp
 	swig -c++ -php7 valustor.i
 
 valustor_wrap.o: Makefile ValuStorWrapper.hpp valustor_wrap.cxx
 	$(CC) $(CFLAGS) -c valustor_wrap.cxx -o valustor_wrap.o
 
-ValuStorWrapper.o: Makefile ValuStorWrapper.hpp ValuStorWrapper.cpp
+ValuStorWrapper.o: Makefile ValuStorWrapper.hpp ValuStorWrapper.cpp ../../ValuStor.hpp
 	$(CC) $(CFLAGS) -c ValuStorWrapper.cpp -o ValuStorWrapper.o
 
 valustor.so: ValuStorWrapper.o valustor_wrap.o

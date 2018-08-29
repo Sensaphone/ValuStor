@@ -27,7 +27,7 @@ if (!extension_loaded('valustor')) {
 
 
 /* PHP Proxy Classes */
-class ValuStorIntWrapper {
+class ValuStorWrapper {
 	public $_cPtr=null;
 	protected $_pData=array();
 
@@ -50,11 +50,50 @@ class ValuStorIntWrapper {
 	}
 
 	static function retrieve($key) {
-		return ValuStorIntWrapper_retrieve($key);
+		return ValuStorWrapper_retrieve($key);
 	}
 
 	static function store($key,$value) {
-		return ValuStorIntWrapper_store($key,$value);
+		return ValuStorWrapper_store($key,$value);
+	}
+
+	static function close() {
+		ValuStorWrapper_close();
+	}
+}
+
+class ValuStorNativeWrapper {
+	public $_cPtr=null;
+	protected $_pData=array();
+
+	function __set($var,$value) {
+		if ($var === 'thisown') return swig_valustor_alter_newobject($this->_cPtr,$value);
+		$this->_pData[$var] = $value;
+	}
+
+	function __get($var) {
+		if ($var === 'thisown') return swig_valustor_get_newobject($this->_cPtr);
+		return $this->_pData[$var];
+	}
+
+	function __isset($var) {
+		if ($var === 'thisown') return true;
+		return array_key_exists($var, $this->_pData);
+	}
+	function __construct($h) {
+		$this->_cPtr=$h;
+	}
+
+	static function retrieve($key) {
+		return ValuStorNativeWrapper_retrieve($key);
+	}
+
+	static function store($key,$value) {
+		return ValuStorNativeWrapper_store($key,$value);
+	}
+
+	static function close() {
+		ValuStorNativeWrapper_close();
 	}
 }
 

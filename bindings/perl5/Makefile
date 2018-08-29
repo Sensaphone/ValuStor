@@ -12,13 +12,13 @@ SOURCEFILES = $(HFILES) $(CPFILES)
 
 default: all
 
-valustor_wrap.cxx:
+valustor_wrap.cxx: ValuStorWrapper.hpp
 	swig -c++ -perl5 valustor.i
 
 valustor_wrap.o: Makefile ValuStorWrapper.hpp valustor_wrap.cxx
 	$(CC) -D_REENTRANT -D_GNU_SOURCE -DDEBIAN -fwrapv -fno-strict-aliasing -pipe -I/usr/local/include -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64 -O2 -g -fPIC -I/usr/lib/x86_64-linux-gnu/perl/5.22/CORE -c valustor_wrap.cxx -o valustor_wrap.o
 
-ValuStorWrapper.o: Makefile ValuStorWrapper.hpp ValuStorWrapper.cpp
+ValuStorWrapper.o: Makefile ValuStorWrapper.hpp ValuStorWrapper.cpp ../../ValuStor.hpp
 	$(CC) $(CFLAGS) -c ValuStorWrapper.cpp -o ValuStorWrapper.o
 
 valustor.so: ValuStorWrapper.o valustor_wrap.o
