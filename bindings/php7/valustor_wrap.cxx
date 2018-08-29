@@ -1103,7 +1103,77 @@ static swig_cast_info *swig_cast_initial[] = {
 /* vdecl subsection */
 /* end vdecl subsection */
 /* wrapper section */
-ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_retrieve) {
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_retrieve) {
+  std::string arg1 ;
+  zval args[1];
+  std::string result;
+  
+  SWIG_ResetError();
+  if(ZEND_NUM_ARGS() != 1 || zend_get_parameters_array_ex(1, args) != SUCCESS) {
+    WRONG_PARAM_COUNT;
+  }
+  
+  
+  convert_to_string(&args[0]);
+  (&arg1)->assign(Z_STRVAL(args[0]), Z_STRLEN(args[0]));
+  
+  result = ValuStorWrapper::retrieve(arg1);
+  
+  ZVAL_STRINGL(return_value, (&result)->data(), (&result)->size());
+  
+thrown:
+  return;
+fail:
+  SWIG_FAIL();
+}
+
+
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_store) {
+  std::string arg1 ;
+  std::string arg2 ;
+  zval args[2];
+  bool result;
+  
+  SWIG_ResetError();
+  if(ZEND_NUM_ARGS() != 2 || zend_get_parameters_array_ex(2, args) != SUCCESS) {
+    WRONG_PARAM_COUNT;
+  }
+  
+  
+  convert_to_string(&args[0]);
+  (&arg1)->assign(Z_STRVAL(args[0]), Z_STRLEN(args[0]));
+  
+  
+  convert_to_string(&args[1]);
+  (&arg2)->assign(Z_STRVAL(args[1]), Z_STRLEN(args[1]));
+  
+  result = (bool)ValuStorWrapper::store(arg1,arg2);
+  
+  RETVAL_BOOL((result) ? 1 : 0);
+  
+thrown:
+  return;
+fail:
+  SWIG_FAIL();
+}
+
+
+ZEND_NAMED_FUNCTION(_wrap_ValuStorWrapper_close) {
+  SWIG_ResetError();
+  if(ZEND_NUM_ARGS() != 0) {
+    WRONG_PARAM_COUNT;
+  }
+  
+  ValuStorWrapper::close();
+  
+thrown:
+  return;
+fail:
+  SWIG_FAIL();
+}
+
+
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_retrieve) {
   long arg1 ;
   zval args[1];
   long result;
@@ -1118,7 +1188,7 @@ ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_retrieve) {
   arg1 = (long) zval_get_long(&args[0]);
   /*@SWIG@*/;
   
-  result = (long)ValuStorIntWrapper::retrieve(arg1);
+  result = (long)ValuStorNativeWrapper::retrieve(arg1);
   
   RETVAL_LONG(result);
   
@@ -1129,7 +1199,7 @@ fail:
 }
 
 
-ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_store) {
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_store) {
   long arg1 ;
   long arg2 ;
   zval args[2];
@@ -1150,9 +1220,24 @@ ZEND_NAMED_FUNCTION(_wrap_ValuStorIntWrapper_store) {
   arg2 = (long) zval_get_long(&args[1]);
   /*@SWIG@*/;
   
-  result = (bool)ValuStorIntWrapper::store(arg1,arg2);
+  result = (bool)ValuStorNativeWrapper::store(arg1,arg2);
   
   RETVAL_BOOL((result) ? 1 : 0);
+  
+thrown:
+  return;
+fail:
+  SWIG_FAIL();
+}
+
+
+ZEND_NAMED_FUNCTION(_wrap_ValuStorNativeWrapper_close) {
+  SWIG_ResetError();
+  if(ZEND_NUM_ARGS() != 0) {
+    WRONG_PARAM_COUNT;
+  }
+  
+  ValuStorNativeWrapper::close();
   
 thrown:
   return;
@@ -1173,13 +1258,19 @@ ZEND_BEGIN_ARG_INFO_EX(swig_arginfo_00, 0, 0, 0)
  ZEND_ARG_PASS_INFO(0)
  ZEND_ARG_PASS_INFO(0)
 ZEND_END_ARG_INFO()
+ZEND_BEGIN_ARG_INFO_EX(swig_arginfo_, 0, 0, 0)
+ZEND_END_ARG_INFO()
 
 
 /* entry subsection */
 /* Every non-class user visible function must have an entry here */
 static zend_function_entry valustor_functions[] = {
- SWIG_ZEND_NAMED_FE(valustorintwrapper_retrieve,_wrap_ValuStorIntWrapper_retrieve,swig_arginfo_0)
- SWIG_ZEND_NAMED_FE(valustorintwrapper_store,_wrap_ValuStorIntWrapper_store,swig_arginfo_00)
+ SWIG_ZEND_NAMED_FE(valustorwrapper_retrieve,_wrap_ValuStorWrapper_retrieve,swig_arginfo_0)
+ SWIG_ZEND_NAMED_FE(valustorwrapper_store,_wrap_ValuStorWrapper_store,swig_arginfo_00)
+ SWIG_ZEND_NAMED_FE(valustorwrapper_close,_wrap_ValuStorWrapper_close,swig_arginfo_)
+ SWIG_ZEND_NAMED_FE(valustornativewrapper_retrieve,_wrap_ValuStorNativeWrapper_retrieve,swig_arginfo_0)
+ SWIG_ZEND_NAMED_FE(valustornativewrapper_store,_wrap_ValuStorNativeWrapper_store,swig_arginfo_00)
+ SWIG_ZEND_NAMED_FE(valustornativewrapper_close,_wrap_ValuStorNativeWrapper_close,swig_arginfo_)
  SWIG_ZEND_NAMED_FE(swig_valustor_alter_newobject,_wrap_swig_valustor_alter_newobject,NULL)
  SWIG_ZEND_NAMED_FE(swig_valustor_get_newobject,_wrap_swig_valustor_get_newobject,NULL)
  ZEND_FE_END

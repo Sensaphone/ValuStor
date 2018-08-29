@@ -50,14 +50,37 @@ sub this {
 package valustor;
 
 
-############# Class : valustor::ValuStorIntWrapper ##############
+############# Class : valustor::ValuStorWrapper ##############
 
-package valustor::ValuStorIntWrapper;
+package valustor::ValuStorWrapper;
 use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
 @ISA = qw( valustor );
 %OWNER = ();
-*retrieve = *valustorc::ValuStorIntWrapper_retrieve;
-*store = *valustorc::ValuStorIntWrapper_store;
+*retrieve = *valustorc::ValuStorWrapper_retrieve;
+*store = *valustorc::ValuStorWrapper_store;
+*close = *valustorc::ValuStorWrapper_close;
+sub DISOWN {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    delete $OWNER{$ptr};
+}
+
+sub ACQUIRE {
+    my $self = shift;
+    my $ptr = tied(%$self);
+    $OWNER{$ptr} = 1;
+}
+
+
+############# Class : valustor::ValuStorNativeWrapper ##############
+
+package valustor::ValuStorNativeWrapper;
+use vars qw(@ISA %OWNER %ITERATORS %BLESSEDMEMBERS);
+@ISA = qw( valustor );
+%OWNER = ();
+*retrieve = *valustorc::ValuStorNativeWrapper_retrieve;
+*store = *valustorc::ValuStorNativeWrapper_store;
+*close = *valustorc::ValuStorNativeWrapper_close;
 sub DISOWN {
     my $self = shift;
     my $ptr = tied(%$self);

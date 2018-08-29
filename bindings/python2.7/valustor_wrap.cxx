@@ -3003,10 +3003,11 @@ SWIG_Python_NonDynamicSetAttr(PyObject *obj, PyObject *name, PyObject *value) {
 
 /* -------- TYPES TABLE (BEGIN) -------- */
 
-#define SWIGTYPE_p_ValuStorIntWrapper swig_types[0]
-#define SWIGTYPE_p_char swig_types[1]
-static swig_type_info *swig_types[3];
-static swig_module_info swig_module = {swig_types, 2, 0, 0, 0, 0};
+#define SWIGTYPE_p_ValuStorNativeWrapper swig_types[0]
+#define SWIGTYPE_p_ValuStorWrapper swig_types[1]
+#define SWIGTYPE_p_char swig_types[2]
+static swig_type_info *swig_types[4];
+static swig_module_info swig_module = {swig_types, 3, 0, 0, 0, 0};
 #define SWIG_TypeQuery(name) SWIG_TypeQueryModule(&swig_module, &swig_module, name)
 #define SWIG_MangledTypeQuery(name) SWIG_MangledTypeQueryModule(&swig_module, &swig_module, name)
 
@@ -3111,11 +3112,211 @@ namespace swig {
 }
 
 
+#include <string>
+
+
 #define SWIG_FILE_WITH_INIT
 #include "ValuStorWrapper.hpp"
 
 
-#include <string>
+SWIGINTERN swig_type_info*
+SWIG_pchar_descriptor(void)
+{
+  static int init = 0;
+  static swig_type_info* info = 0;
+  if (!init) {
+    info = SWIG_TypeQuery("_p_char");
+    init = 1;
+  }
+  return info;
+}
+
+
+SWIGINTERN int
+SWIG_AsCharPtrAndSize(PyObject *obj, char** cptr, size_t* psize, int *alloc)
+{
+#if PY_VERSION_HEX>=0x03000000
+#if defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+  if (PyBytes_Check(obj))
+#else
+  if (PyUnicode_Check(obj))
+#endif
+#else  
+  if (PyString_Check(obj))
+#endif
+  {
+    char *cstr; Py_ssize_t len;
+#if PY_VERSION_HEX>=0x03000000
+#if !defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+    if (!alloc && cptr) {
+        /* We can't allow converting without allocation, since the internal
+           representation of string in Python 3 is UCS-2/UCS-4 but we require
+           a UTF-8 representation.
+           TODO(bhy) More detailed explanation */
+        return SWIG_RuntimeError;
+    }
+    obj = PyUnicode_AsUTF8String(obj);
+    if(alloc) *alloc = SWIG_NEWOBJ;
+#endif
+    PyBytes_AsStringAndSize(obj, &cstr, &len);
+#else
+    PyString_AsStringAndSize(obj, &cstr, &len);
+#endif
+    if (cptr) {
+      if (alloc) {
+	/* 
+	   In python the user should not be able to modify the inner
+	   string representation. To warranty that, if you define
+	   SWIG_PYTHON_SAFE_CSTRINGS, a new/copy of the python string
+	   buffer is always returned.
+
+	   The default behavior is just to return the pointer value,
+	   so, be careful.
+	*/ 
+#if defined(SWIG_PYTHON_SAFE_CSTRINGS)
+	if (*alloc != SWIG_OLDOBJ) 
+#else
+	if (*alloc == SWIG_NEWOBJ) 
+#endif
+	{
+	  *cptr = reinterpret_cast< char* >(memcpy(new char[len + 1], cstr, sizeof(char)*(len + 1)));
+	  *alloc = SWIG_NEWOBJ;
+	} else {
+	  *cptr = cstr;
+	  *alloc = SWIG_OLDOBJ;
+	}
+      } else {
+#if PY_VERSION_HEX>=0x03000000
+#if defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+	*cptr = PyBytes_AsString(obj);
+#else
+	assert(0); /* Should never reach here with Unicode strings in Python 3 */
+#endif
+#else
+	*cptr = SWIG_Python_str_AsChar(obj);
+#endif
+      }
+    }
+    if (psize) *psize = len + 1;
+#if PY_VERSION_HEX>=0x03000000 && !defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+    Py_XDECREF(obj);
+#endif
+    return SWIG_OK;
+  } else {
+#if defined(SWIG_PYTHON_2_UNICODE)
+#if defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+#error "Cannot use both SWIG_PYTHON_2_UNICODE and SWIG_PYTHON_STRICT_BYTE_CHAR at once"
+#endif
+#if PY_VERSION_HEX<0x03000000
+    if (PyUnicode_Check(obj)) {
+      char *cstr; Py_ssize_t len;
+      if (!alloc && cptr) {
+        return SWIG_RuntimeError;
+      }
+      obj = PyUnicode_AsUTF8String(obj);
+      if (PyString_AsStringAndSize(obj, &cstr, &len) != -1) {
+        if (cptr) {
+          if (alloc) *alloc = SWIG_NEWOBJ;
+          *cptr = reinterpret_cast< char* >(memcpy(new char[len + 1], cstr, sizeof(char)*(len + 1)));
+        }
+        if (psize) *psize = len + 1;
+
+        Py_XDECREF(obj);
+        return SWIG_OK;
+      } else {
+        Py_XDECREF(obj);
+      }
+    }
+#endif
+#endif
+
+    swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
+    if (pchar_descriptor) {
+      void* vptr = 0;
+      if (SWIG_ConvertPtr(obj, &vptr, pchar_descriptor, 0) == SWIG_OK) {
+	if (cptr) *cptr = (char *) vptr;
+	if (psize) *psize = vptr ? (strlen((char *)vptr) + 1) : 0;
+	if (alloc) *alloc = SWIG_OLDOBJ;
+	return SWIG_OK;
+      }
+    }
+  }
+  return SWIG_TypeError;
+}
+
+
+SWIGINTERN int
+SWIG_AsPtr_std_string (PyObject * obj, std::string **val) 
+{
+  char* buf = 0 ; size_t size = 0; int alloc = SWIG_OLDOBJ;
+  if (SWIG_IsOK((SWIG_AsCharPtrAndSize(obj, &buf, &size, &alloc)))) {
+    if (buf) {
+      if (val) *val = new std::string(buf, size - 1);
+      if (alloc == SWIG_NEWOBJ) delete[] buf;
+      return SWIG_NEWOBJ;
+    } else {
+      if (val) *val = 0;
+      return SWIG_OLDOBJ;
+    }
+  } else {
+    static int init = 0;
+    static swig_type_info* descriptor = 0;
+    if (!init) {
+      descriptor = SWIG_TypeQuery("std::string" " *");
+      init = 1;
+    }
+    if (descriptor) {
+      std::string *vptr;
+      int res = SWIG_ConvertPtr(obj, (void**)&vptr, descriptor, 0);
+      if (SWIG_IsOK(res) && val) *val = vptr;
+      return res;
+    }
+  }
+  return SWIG_ERROR;
+}
+
+
+SWIGINTERNINLINE PyObject *
+SWIG_FromCharPtrAndSize(const char* carray, size_t size)
+{
+  if (carray) {
+    if (size > INT_MAX) {
+      swig_type_info* pchar_descriptor = SWIG_pchar_descriptor();
+      return pchar_descriptor ? 
+	SWIG_InternalNewPointerObj(const_cast< char * >(carray), pchar_descriptor, 0) : SWIG_Py_Void();
+    } else {
+#if PY_VERSION_HEX >= 0x03000000
+#if defined(SWIG_PYTHON_STRICT_BYTE_CHAR)
+      return PyBytes_FromStringAndSize(carray, static_cast< Py_ssize_t >(size));
+#else
+#if PY_VERSION_HEX >= 0x03010000
+      return PyUnicode_DecodeUTF8(carray, static_cast< Py_ssize_t >(size), "surrogateescape");
+#else
+      return PyUnicode_FromStringAndSize(carray, static_cast< Py_ssize_t >(size));
+#endif
+#endif
+#else
+      return PyString_FromStringAndSize(carray, static_cast< Py_ssize_t >(size));
+#endif
+    }
+  } else {
+    return SWIG_Py_Void();
+  }
+}
+
+
+SWIGINTERNINLINE PyObject *
+SWIG_From_std_string  (const std::string& s)
+{
+  return SWIG_FromCharPtrAndSize(s.data(), s.size());
+}
+
+
+SWIGINTERNINLINE PyObject*
+  SWIG_From_bool  (bool value)
+{
+  return PyBool_FromLong(value ? 1 : 0);
+}
 
 
 SWIGINTERN int
@@ -3245,17 +3446,88 @@ SWIG_AsVal_long (PyObject *obj, long* val)
 
   #define SWIG_From_long   PyInt_FromLong 
 
-
-SWIGINTERNINLINE PyObject*
-  SWIG_From_bool  (bool value)
-{
-  return PyBool_FromLong(value ? 1 : 0);
-}
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-SWIGINTERN PyObject *_wrap_ValuStorIntWrapper_retrieve(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+SWIGINTERN PyObject *_wrap_ValuStorWrapper_retrieve(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  std::string arg1 ;
+  PyObject * obj0 = 0 ;
+  std::string result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"O:ValuStorWrapper_retrieve",&obj0)) SWIG_fail;
+  {
+    std::string *ptr = (std::string *)0;
+    int res = SWIG_AsPtr_std_string(obj0, &ptr);
+    if (!SWIG_IsOK(res) || !ptr) {
+      SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_retrieve" "', argument " "1"" of type '" "std::string""'"); 
+    }
+    arg1 = *ptr;
+    if (SWIG_IsNewObj(res)) delete ptr;
+  }
+  result = ValuStorWrapper::retrieve(arg1);
+  resultobj = SWIG_From_std_string(static_cast< std::string >(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_ValuStorWrapper_store(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  std::string arg1 ;
+  std::string arg2 ;
+  PyObject * obj0 = 0 ;
+  PyObject * obj1 = 0 ;
+  bool result;
+  
+  if (!PyArg_ParseTuple(args,(char *)"OO:ValuStorWrapper_store",&obj0,&obj1)) SWIG_fail;
+  {
+    std::string *ptr = (std::string *)0;
+    int res = SWIG_AsPtr_std_string(obj0, &ptr);
+    if (!SWIG_IsOK(res) || !ptr) {
+      SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_store" "', argument " "1"" of type '" "std::string""'"); 
+    }
+    arg1 = *ptr;
+    if (SWIG_IsNewObj(res)) delete ptr;
+  }
+  {
+    std::string *ptr = (std::string *)0;
+    int res = SWIG_AsPtr_std_string(obj1, &ptr);
+    if (!SWIG_IsOK(res) || !ptr) {
+      SWIG_exception_fail(SWIG_ArgError((ptr ? res : SWIG_TypeError)), "in method '" "ValuStorWrapper_store" "', argument " "2"" of type '" "std::string""'"); 
+    }
+    arg2 = *ptr;
+    if (SWIG_IsNewObj(res)) delete ptr;
+  }
+  result = (bool)ValuStorWrapper::store(arg1,arg2);
+  resultobj = SWIG_From_bool(static_cast< bool >(result));
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *_wrap_ValuStorWrapper_close(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  
+  if (!PyArg_ParseTuple(args,(char *)":ValuStorWrapper_close")) SWIG_fail;
+  ValuStorWrapper::close();
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *ValuStorWrapper_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *obj;
+  if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
+  SWIG_TypeNewClientData(SWIGTYPE_p_ValuStorWrapper, SWIG_NewClientData(obj));
+  return SWIG_Py_Void();
+}
+
+SWIGINTERN PyObject *_wrap_ValuStorNativeWrapper_retrieve(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   long arg1 ;
   long val1 ;
@@ -3263,13 +3535,13 @@ SWIGINTERN PyObject *_wrap_ValuStorIntWrapper_retrieve(PyObject *SWIGUNUSEDPARM(
   PyObject * obj0 = 0 ;
   long result;
   
-  if (!PyArg_ParseTuple(args,(char *)"O:ValuStorIntWrapper_retrieve",&obj0)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"O:ValuStorNativeWrapper_retrieve",&obj0)) SWIG_fail;
   ecode1 = SWIG_AsVal_long(obj0, &val1);
   if (!SWIG_IsOK(ecode1)) {
-    SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorIntWrapper_retrieve" "', argument " "1"" of type '" "long""'");
+    SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorNativeWrapper_retrieve" "', argument " "1"" of type '" "long""'");
   } 
   arg1 = static_cast< long >(val1);
-  result = (long)ValuStorIntWrapper::retrieve(arg1);
+  result = (long)ValuStorNativeWrapper::retrieve(arg1);
   resultobj = SWIG_From_long(static_cast< long >(result));
   return resultobj;
 fail:
@@ -3277,7 +3549,7 @@ fail:
 }
 
 
-SWIGINTERN PyObject *_wrap_ValuStorIntWrapper_store(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+SWIGINTERN PyObject *_wrap_ValuStorNativeWrapper_store(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0;
   long arg1 ;
   long arg2 ;
@@ -3289,18 +3561,18 @@ SWIGINTERN PyObject *_wrap_ValuStorIntWrapper_store(PyObject *SWIGUNUSEDPARM(sel
   PyObject * obj1 = 0 ;
   bool result;
   
-  if (!PyArg_ParseTuple(args,(char *)"OO:ValuStorIntWrapper_store",&obj0,&obj1)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"OO:ValuStorNativeWrapper_store",&obj0,&obj1)) SWIG_fail;
   ecode1 = SWIG_AsVal_long(obj0, &val1);
   if (!SWIG_IsOK(ecode1)) {
-    SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorIntWrapper_store" "', argument " "1"" of type '" "long""'");
+    SWIG_exception_fail(SWIG_ArgError(ecode1), "in method '" "ValuStorNativeWrapper_store" "', argument " "1"" of type '" "long""'");
   } 
   arg1 = static_cast< long >(val1);
   ecode2 = SWIG_AsVal_long(obj1, &val2);
   if (!SWIG_IsOK(ecode2)) {
-    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "ValuStorIntWrapper_store" "', argument " "2"" of type '" "long""'");
+    SWIG_exception_fail(SWIG_ArgError(ecode2), "in method '" "ValuStorNativeWrapper_store" "', argument " "2"" of type '" "long""'");
   } 
   arg2 = static_cast< long >(val2);
-  result = (bool)ValuStorIntWrapper::store(arg1,arg2);
+  result = (bool)ValuStorNativeWrapper::store(arg1,arg2);
   resultobj = SWIG_From_bool(static_cast< bool >(result));
   return resultobj;
 fail:
@@ -3308,37 +3580,58 @@ fail:
 }
 
 
-SWIGINTERN PyObject *ValuStorIntWrapper_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+SWIGINTERN PyObject *_wrap_ValuStorNativeWrapper_close(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
+  PyObject *resultobj = 0;
+  
+  if (!PyArg_ParseTuple(args,(char *)":ValuStorNativeWrapper_close")) SWIG_fail;
+  ValuStorNativeWrapper::close();
+  resultobj = SWIG_Py_Void();
+  return resultobj;
+fail:
+  return NULL;
+}
+
+
+SWIGINTERN PyObject *ValuStorNativeWrapper_swigregister(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *obj;
   if (!PyArg_ParseTuple(args,(char *)"O:swigregister", &obj)) return NULL;
-  SWIG_TypeNewClientData(SWIGTYPE_p_ValuStorIntWrapper, SWIG_NewClientData(obj));
+  SWIG_TypeNewClientData(SWIGTYPE_p_ValuStorNativeWrapper, SWIG_NewClientData(obj));
   return SWIG_Py_Void();
 }
 
 static PyMethodDef SwigMethods[] = {
 	 { (char *)"SWIG_PyInstanceMethod_New", (PyCFunction)SWIG_PyInstanceMethod_New, METH_O, NULL},
-	 { (char *)"ValuStorIntWrapper_retrieve", _wrap_ValuStorIntWrapper_retrieve, METH_VARARGS, NULL},
-	 { (char *)"ValuStorIntWrapper_store", _wrap_ValuStorIntWrapper_store, METH_VARARGS, NULL},
-	 { (char *)"ValuStorIntWrapper_swigregister", ValuStorIntWrapper_swigregister, METH_VARARGS, NULL},
+	 { (char *)"ValuStorWrapper_retrieve", _wrap_ValuStorWrapper_retrieve, METH_VARARGS, NULL},
+	 { (char *)"ValuStorWrapper_store", _wrap_ValuStorWrapper_store, METH_VARARGS, NULL},
+	 { (char *)"ValuStorWrapper_close", _wrap_ValuStorWrapper_close, METH_VARARGS, NULL},
+	 { (char *)"ValuStorWrapper_swigregister", ValuStorWrapper_swigregister, METH_VARARGS, NULL},
+	 { (char *)"ValuStorNativeWrapper_retrieve", _wrap_ValuStorNativeWrapper_retrieve, METH_VARARGS, NULL},
+	 { (char *)"ValuStorNativeWrapper_store", _wrap_ValuStorNativeWrapper_store, METH_VARARGS, NULL},
+	 { (char *)"ValuStorNativeWrapper_close", _wrap_ValuStorNativeWrapper_close, METH_VARARGS, NULL},
+	 { (char *)"ValuStorNativeWrapper_swigregister", ValuStorNativeWrapper_swigregister, METH_VARARGS, NULL},
 	 { NULL, NULL, 0, NULL }
 };
 
 
 /* -------- TYPE CONVERSION AND EQUIVALENCE RULES (BEGIN) -------- */
 
-static swig_type_info _swigt__p_ValuStorIntWrapper = {"_p_ValuStorIntWrapper", "ValuStorIntWrapper *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_ValuStorNativeWrapper = {"_p_ValuStorNativeWrapper", "ValuStorNativeWrapper *", 0, 0, (void*)0, 0};
+static swig_type_info _swigt__p_ValuStorWrapper = {"_p_ValuStorWrapper", "ValuStorWrapper *", 0, 0, (void*)0, 0};
 static swig_type_info _swigt__p_char = {"_p_char", "char *", 0, 0, (void*)0, 0};
 
 static swig_type_info *swig_type_initial[] = {
-  &_swigt__p_ValuStorIntWrapper,
+  &_swigt__p_ValuStorNativeWrapper,
+  &_swigt__p_ValuStorWrapper,
   &_swigt__p_char,
 };
 
-static swig_cast_info _swigc__p_ValuStorIntWrapper[] = {  {&_swigt__p_ValuStorIntWrapper, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_ValuStorNativeWrapper[] = {  {&_swigt__p_ValuStorNativeWrapper, 0, 0, 0},{0, 0, 0, 0}};
+static swig_cast_info _swigc__p_ValuStorWrapper[] = {  {&_swigt__p_ValuStorWrapper, 0, 0, 0},{0, 0, 0, 0}};
 static swig_cast_info _swigc__p_char[] = {  {&_swigt__p_char, 0, 0, 0},{0, 0, 0, 0}};
 
 static swig_cast_info *swig_cast_initial[] = {
-  _swigc__p_ValuStorIntWrapper,
+  _swigc__p_ValuStorNativeWrapper,
+  _swigc__p_ValuStorWrapper,
   _swigc__p_char,
 };
 

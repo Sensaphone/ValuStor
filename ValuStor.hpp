@@ -1,7 +1,7 @@
 /*
 ValuStor - Scylla DB key-value pair storage
 
-version 1.0.1
+version 1.0.3
 
 Licensed under the MIT License
 
@@ -1263,6 +1263,98 @@ class ValuStor
       }
       return error;
     }
+
+  private:
+    static std::string convertToStr(const int8_t& value)  {  return std::to_string(value); }
+    static std::string convertToStr(const int16_t& value) {  return std::to_string(value); }
+    static std::string convertToStr(const int32_t& value) {  return std::to_string(value); }
+    static std::string convertToStr(const uint32_t& value) { return std::to_string(value); }
+    static std::string convertToStr(const int64_t& value) {  return std::to_string(value); }
+    static std::string convertToStr(const float& value) {    return std::to_string(value); }
+    static std::string convertToStr(const double& value) {   return std::to_string(value); }
+    static std::string convertToStr(const std::string& value) { return value; }
+    static std::string convertToStr(const char* value) {     return std::string(value);    }
+    static std::string convertToStr(const cass_bool_t& value) { return std::to_string(value == cass_true); }
+    static std::string convertToStr(const bool& value) {     return std::to_string(value); }
+    static std::string convertToStr(const CassUuid& value) {
+      char* output = nullptr;
+      cass_uuid_string(value, output);
+      return output != nullptr ? std::string(output) : "";
+    }
+    static std::string convertToStr(const std::vector<uint8_t>& value) { return std::string(value); }
+    #if defined(NLOHMANN_JSON_HPP)
+    static std::string convertToStr(const nlohmann::json& value){ return value.dump(); }
+    #endif
+
+    static void convertFromStr(const std::string& source, int8_t* dest)   { *dest = std::atoll(source.c_str());  }
+    static void convertFromStr(const std::string& source, int16_t* dest)  { *dest = std::atoll(source.c_str());  }
+    static void convertFromStr(const std::string& source, int32_t* dest)  { *dest = std::atoll(source.c_str());  }
+    static void convertFromStr(const std::string& source, uint32_t* dest) { *dest = std::atoll(source.c_str());  }
+    static void convertFromStr(const std::string& source, int64_t* dest)  { *dest = std::atoll(source.c_str());  }
+    static void convertFromStr(const std::string& source, cass_bool_t* dest)  {
+      *dest = (source != "" and source != "0" and source != "false" and source != "False") ? cass_true : cass_false;
+    }
+    static void convertFromStr(const std::string& source, bool* dest)  {
+      *dest = (source != "" and source != "0" and source != "false" and source != "False") ? true : false;
+    }
+    static void convertFromStr(const std::string& source, float* dest)  {  *dest = std::atof(source.c_str()); }
+    static void convertFromStr(const std::string& source, double* dest)  { *dest = std::atof(source.c_str()); }
+    static void convertFromStr(const std::string& source, std::string* dest)  {
+      *dest = source;
+    }
+    static void convertFromStr(const std::string& source, CassUuid* dest)  {
+      cass_uuid_from_string(source.c_str(), dest);
+    }
+    static void convertFromStr(const std::string& source, std::vector<uint8_t>* dest)  {
+      *dest = source;
+    }
+    #if defined(NLOHMANN_JSON_HPP)
+    static void convertFromStr(const std::string& source, nlohmann::json* dest)  {
+      *dest = nlohmann::json::parse(source);
+    }
+    #endif
+
+  public:
+    // ****************************************************************************************************
+    /// @name            valueToString
+    ///
+    /// @brief           Convert a Val_T value to a string.
+    ///                  For example:
+    ///                    {
+    ///                      std::string key = "0";
+    ///                      auto result = ValuStor::retrieve(ValuStor::stringToKey(key));
+    ///                      return ValuStor::valueToString(result.data);
+    ///                    }
+    ///
+    std::string valueToString(const Val_T& value){ return convertToStr(value); }
+
+    // ****************************************************************************************************
+    /// @name            stringToValue
+    ///
+    /// @brief           Convert a string into a Val_T
+    ///                  For example:
+    ///                    {
+    ///                      std::string key = "0";
+    ///                      std::string value = "0";
+    ///                      ValuStor::store( ValuStor::stringToKey(key),
+    ///                                       ValuStor::stringToValue(value) )
+    ///                    }
+    ///
+    Val_T stringToValue(std::string value){ Val_T v{}; convertFromStr(value, &v); return v; }
+
+    // ****************************************************************************************************
+    /// @name            stringToKey
+    ///
+    /// @brief           Convert a string into the first type in the template "Keys..."
+    ///                  For example:
+    ///                    {
+    ///                      std::string key = "0";
+    ///                      std::string value = "0";
+    ///                      ValuStor::store( ValuStor::stringToKey(key),
+    ///                                       ValuStor::stringToValue(value) )
+    ///                    }
+    ///
+    std::tuple<Keys...> stringToKey(std::string key){ std::tuple<Keys...> values{}; convertFromStr(key, &std::get<0>(values)); return values; }
 
 };
 
